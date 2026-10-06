@@ -1,0 +1,114 @@
+import Foundation
+import Darwin
+import IOKit.ps
+import Security
+#if canImport(LidModeFeature)
+import LidModeFeature
+#endif
+
+/// LidPowerHelper — LaunchDaemon embedded in Shut Your Lid, registered with
+/// SMAppService and approved once by the user in System Settings. Runs as
+/// root only to set and restore the sleep-disabled flag (see LidModeCore).
+/// Accepts connections only from the signed Shut Your Lid of the same team.
+
+let appBundleID = "com.artemkharitonov.shutyourlid"
+let stateURL = URL(fileURLWithPath: "/Library/Application Support/ShutYourLid/\(appBundleID).lid-mode.json")
+// The daemon owns its persistence directory; never trust a user-created path.
+guard getuid() == 0 else { exit(1) }
+let stateDirectory = stateURL.deletingLastPathComponent()
+do {
+    try FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    let attributes = try FileManager.default.attributesOfItem(atPath: stateDirectory.path)
+    guard attributes[.type] as? FileAttributeType == .typeDirectory,
+          (attributes[.ownerAccountID] as? NSNumber)?.intValue == 0 else { exit(1) }
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: stateDirectory.path)
+} catch { exit(1) }
+let controller = LidModeController(settings: PmsetPowerSettings(), stateURL: stateURL)
+controller.recoverOnLaunch()
+
+func powerReading() -> LidPowerReading {
+    var onBattery = false
+    var percent: Int?
+    if let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+       let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] {
+        for source in list {
+            guard let info = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any] else { continue }
+            if let state = info[kIOPSPowerSourceStateKey] as? String { onBattery = state == kIOPSBatteryPowerValue }
+            if let current = info[kIOPSCurrentCapacityKey] as? Int, let max = info[kIOPSMaxCapacityKey] as? Int, max > 0 {
+                percent = current * 100 / max
+            }
+        }
+    }
+    let thermal = ProcessInfo.processInfo.thermalState
+    return LidPowerReading(onBattery: onBattery, batteryPercent: percent,
+                           thermalSeriousOrWorse: thermal == .serious || thermal == .critical,
+                           lidClosed: lidClosed())
+}
+
+func lidClosed() -> Bool {
+    let root = IORegistryGetRootEntry(kIOMainPortDefault)
+    defer { IOObjectRelease(root) }
+    guard let value = IORegistryEntrySearchCFProperty(root, kIOServicePlane, "AppleClamshellState" as CFString, kCFAllocatorDefault,
+                                                     IOOptionBits(kIORegistryIterateRecursively)) else { return false }
+    return (value as? Bool) ?? false
+}
+
+final class Endpoint: NSObject, LidPowerControl {
+    func status(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.status())) }
+    func enable(maxMinutes: Int, batteryFloor: Int, reply: @escaping @Sendable (Data) -> Void) {
+        do { reply(LidModeWire.encode(try controller.enable(maxMinutes: maxMinutes, batteryFloor: batteryFloor, power: powerReading()))) }
+        catch {
+            var status = controller.status()
+            status.error = String(describing: error)
+            reply(LidModeWire.encode(status))
+        }
+    }
+    func disable(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.disable(reason: .user))) }
+    func heartbeat(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.heartbeat())) }
+}
+
+/// `connections` is touched only on the main queue (accept and invalidation
+/// both hop there, in order).
+final class Listener: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
+    var connections = 0
+    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        connection.setCodeSigningRequirement(LidPowerHelperIdentity.clientRequirement(appBundleID: appBundleID, team: "8XZ7Z4UR6C"))
+        connection.exportedInterface = NSXPCInterface(with: LidPowerControl.self)
+        connection.exportedObject = Endpoint()
+        DispatchQueue.main.async { self.connections += 1 }
+        // The app is gone (quit, crash, SIGKILL): the lease ends with it.
+        connection.invalidationHandler = {
+            DispatchQueue.main.async {
+                self.connections -= 1
+                if self.connections <= 0 { _ = controller.disable(reason: .appGone) }
+            }
+        }
+        connection.resume()
+        return true
+    }
+}
+
+let delegate = Listener()
+let listener = NSXPCListener(machServiceName: LidPowerHelperIdentity.label(forApp: appBundleID))
+listener.delegate = delegate
+listener.resume()
+
+// Guards every 10 s while active; exit when idle so nothing stays running.
+var idleSince = Date()
+let timer = DispatchSource.makeTimerSource(queue: .main)
+timer.schedule(deadline: .now() + 10, repeating: 10)
+timer.setEventHandler {
+    if controller.status().active, LegacyModeConflict.isPresent() {
+        _ = controller.disable(reason: .failed)
+    } else {
+        controller.tick(power: powerReading())
+    }
+    let status = controller.status()
+    if status.active || status.error != nil {
+        idleSince = Date()
+    } else if delegate.connections == 0, Date().timeIntervalSince(idleSince) > 60 {
+        exit(0)
+    }
+}
+timer.resume()
+dispatchMain()

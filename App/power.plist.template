@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>__LABEL__</string>
+    <key>BundleProgram</key><string>Contents/MacOS/LidPowerHelper</string>
+    <key>ProgramArguments</key><array><string>Contents/MacOS/LidPowerHelper</string><string>__APP_ID__</string></array>
+    <key>MachServices</key><dict><key>__LABEL__</key><true/></dict>
+    <!-- Runs at boot to restore the flag if a previous run could not;
+         relaunched after a crash; exits on its own when idle. -->
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+    <key>AssociatedBundleIdentifiers</key><array><string>__APP_ID__</string></array>
+</dict>
+</plist>
