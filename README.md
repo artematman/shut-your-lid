@@ -1,8 +1,8 @@
 # Shut Your Lid
 
-Standalone macOS menu bar utility for keeping a MacBook working with its lid closed. Version 0.1.0, macOS 14+, current build arm64. Hardware acceptance is pending; this is a signed local preview, not a notarized public release.
+Standalone macOS menu bar utility for keeping a MacBook working with its lid closed. Version 0.2.0, macOS 14+, current build arm64. Hardware acceptance is pending; this is a signed local preview, not a notarized public release.
 
-Click the laptop icon for the compact switch «Работать с закрытой крышкой». The panel fits its content, anchors to the icon on its display, and closes with Escape or an outside click. The switch becomes on only after the helper confirms the actual sleep-disabled flag. Quit is available in the panel and ends the lease.
+Click the laptop icon for the compact switch «Работать с закрытой крышкой». The panel fits its content, anchors to the icon on its display, and closes with Escape or an outside click. Choose 30 minutes, 1, 2, 4, 8 or 12 hours, or enter a custom duration from 1 to 720 minutes. The last choice is saved locally; four hours is the initial default. A running duration is fixed: switch off before selecting a new duration. The switch becomes on only after the helper confirms the actual sleep-disabled flag. Quit is available in the panel and ends the lease.
 
 ## Start and migrate
 
@@ -21,8 +21,10 @@ No old permission, TCC entry, state file or XPC identity is reused. Island Pro's
 - Own executable: `LidPowerHelper`; both directions require the expected code signing identifier and Developer ID team `8XZ7Z4UR6C`.
 - Root-owned private persistence: `/Library/Application Support/ShutYourLid/com.artemkharitonov.shutyourlid.lid-mode.json`.
 - Writes previous sleep state before changing `pmset disablesleep`; restores on disable, disconnect, lease expiry, guard or daemon restart.
-- Default four-hour limit, 20% battery floor, serious/critical thermal stop, 30-second app heartbeat and 90-second lease; daemon checks every ten seconds.
+- Default four-hour limit, 10% battery floor, serious/critical thermal stop, 30-second app heartbeat and 90-second lease; daemon checks every ten seconds.
 - Refuses to start if sleep is already disabled by another tool. Refuses the known Island Pro stable/beta daemons and running Island Pro process. Rechecks conflict during operation. This is a conservative migration gate, not a universal lock against arbitrary tools changing pmset after enable.
+- At 10% battery or below, normal sleep is restored and the Mac is asked to sleep even with its lid open. The ten-second guard interval bounds normal detection latency. Known AC power does not trigger the low-battery stop. Unknown source or missing/invalid battery charge blocks enable and stops a running mode.
+- Continuous monotonic time, including system sleep, drives duration and heartbeat deadlines; changing the wall clock cannot extend them. Calendar dates are used only for display and crash records.
 - A failed restoration preserves the recovery file, reports an error and retries on the daemon timer. A corrupt file blocks enable instead of guessing a previous state.
 
 This uses a privileged system setting, not caffeinate. The physical lid behavior has not been verified on this Mac, and no claim is made for all Mac models. Avoid putting an operating laptop in a bag.
@@ -35,7 +37,7 @@ swift test
 python3 Scripts/verify-app.py '/private/tmp/shut-your-lid-artifact/Shut Your Lid.app'
 ```
 
-The build script signs with the owner's installed Developer ID certificate. It does not install signing credentials, register the daemon, change power settings or request permissions. Build in a local temporary folder to avoid File Provider metadata interfering with signing. Icon source is the native drawing script `Scripts/make-icon.swift`.
+The build script signs with the owner's installed Developer ID certificate. Private signing keys remain in the build machine’s Keychain and are not packaged. The runtime application and daemon contain no Keychain-reading, document-reading, analytics or network client code. Each installation operates on its own Mac with its own local state. Signing identifies the publisher but grants no access to the publisher’s computer or Keychain. It does not install signing credentials, register the daemon, change power settings or request permissions. Build in a local temporary folder to avoid File Provider metadata interfering with signing. The release script remaps source paths, removes debug symbol references before signing, and rejects personal paths or secret patterns in artifacts. Run `python3 Scripts/privacy-gate.py --history --app /path/to/app` before publication. These static checks complement code review; they are not a proof against every possible vulnerability. Icon source is the native drawing script `Scripts/make-icon.swift`.
 
 ## Physical acceptance
 

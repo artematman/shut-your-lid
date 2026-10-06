@@ -55,6 +55,8 @@ final class LidModeMenuBar: NSObject {
         withObservationTracking {
             _ = model.phase
             _ = model.lastStop
+            _ = model.maxMinutes
+            _ = model.usesCustomDuration
             let enabled = model.isOn
             item?.button?.image = NSImage(systemSymbolName: enabled ? "laptopcomputer.and.arrow.down" : "laptopcomputer",
                                          accessibilityDescription: loc("lid.title"))
@@ -81,6 +83,10 @@ final class LidModeMenuBar: NSObject {
             let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
             panel.setFrame(LidModeMenuBarGeometry.frame(anchor: anchor, screen: screen.frame, size: size), display: true)
         }
+    }
+
+    func showPanel() {
+        if !panel.isVisible { togglePopover() }
     }
 
     @objc private func togglePopover() {
@@ -151,6 +157,8 @@ struct LidModeQuickView: View {
             .font(.headline)
             .disabled(model.phase == .working || unavailable)
 
+            LidDurationPicker(model: model)
+
             Text(LidModeSettingsView(model: model).detail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -172,5 +180,46 @@ struct LidModeQuickView: View {
     private var unavailable: Bool {
         if case .unavailable = model.phase { return true }
         return false
+    }
+}
+
+struct LidDurationPicker: View {
+    @Bindable var model: LidModeModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Длительность", selection: Binding(
+                get: { model.usesCustomDuration || !LidModeModel.durationPresets.contains(model.maxMinutes) ? 0 : model.maxMinutes },
+                set: { minutes in
+                    model.usesCustomDuration = minutes == 0
+                    if minutes != 0 { model.setDuration(minutes: minutes) }
+                }
+            )) {
+                ForEach(LidModeModel.durationPresets, id: \.self) { minutes in
+                    Text(LidModeModel.durationTitle(minutes: minutes)).tag(minutes)
+                }
+                Text("Свой интервал…").tag(0)
+            }
+            if model.usesCustomDuration || !LidModeModel.durationPresets.contains(model.maxMinutes) {
+                HStack {
+                    Text("Минуты")
+                    Spacer()
+                    TextField("1–720", value: Binding(
+                        get: { model.maxMinutes },
+                        set: { model.setDuration(minutes: $0) }
+                    ), format: .number.grouping(.never))
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
+                    .textFieldStyle(.roundedBorder)
+                    Stepper("Минуты", value: Binding(
+                        get: { model.maxMinutes },
+                        set: { model.setDuration(minutes: $0) }
+                    ), in: 1...LidModeLimits.maxMinutesCap)
+                    .labelsHidden()
+                }
+            }
+        }
+        .disabled(!model.canChangeDuration)
+        .help(model.canChangeDuration ? "От 1 минуты до 12 часов. Выбранное время сохраняется." : "Чтобы задать новый срок, выключите режим и включите его снова.")
     }
 }

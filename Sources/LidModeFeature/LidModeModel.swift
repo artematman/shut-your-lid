@@ -38,13 +38,43 @@ import ServiceManagement
     public private(set) var phase: Phase = .off
     /// Why the mode turned itself off last time (battery, heat, limit, app gone).
     public private(set) var lastStop: LidModeStatus.StopReason?
-    public var maxMinutes = LidModeLimits.defaultMaxMinutes
-    public var batteryFloor = LidModeLimits.defaultBatteryFloor
+    public static let durationPresets = [30, 60, 120, 240, 480, 720]
+    public private(set) var maxMinutes: Int
+    public var usesCustomDuration = false
+    public let batteryFloor = LidModeLimits.defaultBatteryFloor
+    @ObservationIgnored private let preferences: UserDefaults?
 
     private let system: System
     @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
 
-    public init(system: System) { self.system = system }
+    public init(system: System, preferences: UserDefaults? = nil) {
+        self.system = system
+        self.preferences = preferences
+        let saved = preferences?.object(forKey: "durationMinutes") as? Int
+        self.maxMinutes = saved.map { min(max(1, $0), LidModeLimits.maxMinutesCap) } ?? LidModeLimits.defaultMaxMinutes
+        self.usesCustomDuration = !Self.durationPresets.contains(self.maxMinutes)
+    }
+
+    public var canChangeDuration: Bool {
+        switch phase {
+        case .on, .working, .needsApproval: return false
+        default: return true
+        }
+    }
+
+    /// A running lease is immutable; the chosen duration applies to the next start.
+    public func setDuration(minutes: Int) {
+        guard canChangeDuration else { return }
+        maxMinutes = min(max(1, minutes), LidModeLimits.maxMinutesCap)
+        preferences?.set(maxMinutes, forKey: "durationMinutes")
+    }
+
+    public var durationTitle: String { Self.durationTitle(minutes: maxMinutes) }
+
+    public static func durationTitle(minutes: Int) -> String {
+        if minutes % 60 == 0 { return "\(minutes / 60) ч" }
+        return "\(minutes) мин"
+    }
 
     public var isOn: Bool { if case .on = phase { return true }; return false }
 

@@ -10,8 +10,8 @@ import SwiftUI
     var detail: String {
         switch model.phase {
         case .off:
-            if let stop = model.lastStop, let note = Self.stopNote(stop) { return note + " " + loc("lid.detail.off") }
-            return loc("lid.detail.off")
+            if let stop = model.lastStop, let note = Self.stopNote(stop) { return note + " " + loc("lid.detail.off %@", model.durationTitle) }
+            return loc("lid.detail.off %@", model.durationTitle)
         case .needsApproval: return loc("lid.detail.needsApproval")
         case .working: return loc("lid.detail.working")
         case .on(let until):
@@ -28,6 +28,7 @@ import SwiftUI
         case .appGone, .heartbeatLost: return loc("lid.stop.appGone")
         case .batteryFloor: return loc("lid.stop.battery")
         case .thermal: return loc("lid.stop.thermal")
+        case .telemetryUnavailable: return loc("lid.stop.telemetry")
         case .timeLimit: return loc("lid.stop.time")
         case .recoveredAfterRestart: return loc("lid.stop.recovered")
         case .failed: return loc("lid.stop.failed")

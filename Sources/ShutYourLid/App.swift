@@ -1,12 +1,17 @@
 import AppKit
 import LidModeFeature
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
- let model = LidModeModel(system: .live())
+ let model = LidModeModel(system: .live(), preferences: .standard)
  var menu: LidModeMenuBar?
  var quitting = false
  func applicationDidFinishLaunching(_ notification: Notification) {
   NSApp.setActivationPolicy(.accessory)
   menu = LidModeMenuBar(model: model); menu?.start()
+  Task { @MainActor in await Task.yield(); menu?.showPanel() }
+ }
+ func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+  menu?.showPanel()
+  return false
  }
  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
   if quitting { return .terminateNow }

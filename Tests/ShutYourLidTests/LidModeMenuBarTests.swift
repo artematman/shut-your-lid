@@ -19,7 +19,7 @@ struct LidModeMenuBarTests {
         content.layoutSubtreeIfNeeded()
         let size = LidModeMenuBarGeometry.contentSize(for: content)
         #expect(size.width == 360)
-        #expect(size.height > 80 && size.height < 240)
+        #expect(size.height > 80 && size.height < 340)
         #expect(size.height == ceil(content.fittingSize.height))
         let panel = NSPanel(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
         LidModeMenuBarGeometry.install(contentView: content, in: panel, size: size)
@@ -71,5 +71,34 @@ struct LidModeMenuBarTests {
         #expect(!LidModeModel.System.hasEmbeddedHelper(bundleURL: bundle, appBundleID: "wrong.identity"))
         try Data("invalid plist".utf8).write(to: plist)
         #expect(!LidModeModel.System.hasEmbeddedHelper(bundleURL: bundle, appBundleID: id))
+    }
+}
+
+@MainActor @Suite("Duration panel layout")
+struct DurationPanelLayoutTests {
+    @Test("custom duration adds an unclipped row while preserving compact width")
+    func customRow() throws {
+        _ = NSApplication.shared
+        let model = LidModeModel(system: .init(serviceState: { .notRegistered }, register: {}, openLoginItems: {}, call: { _ in nil }))
+        let preset = NSHostingView(rootView: LidModeQuickView(model: model))
+        preset.sizingOptions = [.intrinsicContentSize]
+        preset.layoutSubtreeIfNeeded()
+        let presetSize = LidModeMenuBarGeometry.contentSize(for: preset)
+        model.usesCustomDuration = true
+        model.setDuration(minutes: 45)
+        let custom = NSHostingView(rootView: LidModeQuickView(model: model))
+        custom.sizingOptions = [.intrinsicContentSize]
+        custom.layoutSubtreeIfNeeded()
+        let size = LidModeMenuBarGeometry.contentSize(for: custom)
+        #expect(size.width == 360 && size.height > presetSize.height && size.height < 400)
+        let panel = NSPanel(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        LidModeMenuBarGeometry.install(contentView: custom, in: panel, size: size)
+        custom.layoutSubtreeIfNeeded()
+        #expect(custom.fittingSize.height <= panel.frame.height)
+        if let output = ProcessInfo.processInfo.environment["LID_PREVIEW_PATH"],
+           let bitmap = custom.bitmapImageRepForCachingDisplay(in: custom.bounds) {
+            custom.cacheDisplay(in: custom.bounds, to: bitmap)
+            try bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: output))
+        }
     }
 }

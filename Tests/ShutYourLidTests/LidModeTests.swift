@@ -29,7 +29,7 @@ struct LidModeCoreTests {
 
     private func make(_ pmset: FakePmset, _ clock: Clock, url: URL? = nil) -> (LidModeController, URL) {
         let file = url ?? FileManager.default.temporaryDirectory.appendingPathComponent("lid-\(UUID().uuidString).json")
-        return (LidModeController(settings: pmset, stateURL: file, now: { clock.now }), file)
+        return (LidModeController(settings: pmset, stateURL: file, now: { clock.now }, elapsed: { clock.now.timeIntervalSince1970 }), file)
     }
 
     @Test("on: flag set and VERIFIED, state written first; off: previous value restored and state removed")
@@ -94,7 +94,7 @@ struct LidModeCoreTests {
             clock.now = clock.now.addingTimeInterval(advance)
             let reason = controller.tick(power: reading)
             #expect(reason == expected && !pmset.flag, "\(expected)")
-            #expect(pmset.sleeps == (reading.lidClosed ? 1 : 0))
+            #expect(pmset.sleeps == (reading.lidClosed || expected == .batteryFloor ? 1 : 0))
         }
         // Heartbeats keep it on.
         let pmset = FakePmset(); let clock = Clock()

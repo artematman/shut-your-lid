@@ -38,12 +38,12 @@ public struct LidModeStatus: Codable, Equatable, Sendable {
     }
 
     public enum StopReason: String, Codable, Sendable {
-        case user, appGone, heartbeatLost, batteryFloor, thermal, timeLimit, recoveredAfterRestart, failed
+        case user, appGone, heartbeatLost, batteryFloor, telemetryUnavailable, thermal, timeLimit, recoveredAfterRestart, failed
     }
 }
 
 public enum LidModeLimits {
-    public static let defaultBatteryFloor = 20
+    public static let defaultBatteryFloor = 10
     public static let defaultMaxMinutes = 240
     public static let maxMinutesCap = 720
     public static let heartbeatTimeout: TimeInterval = 90
@@ -54,25 +54,46 @@ public protocol LidPowerSettings: Sendable {
     func sleepDisabled() throws -> Bool
     func setSleepDisabled(_ value: Bool) throws
     /// Asks the Mac to sleep now (used after a guard fires with the lid closed).
-    func sleepNow()
+    func sleepNow() throws
 }
 
 /// Battery and heat, as macOS reports them.
 public struct LidPowerReading: Equatable, Sendable {
-    public var onBattery: Bool
+    public var onBattery: Bool?
     public var batteryPercent: Int?
     public var thermalSeriousOrWorse: Bool
     public var lidClosed: Bool
-    public init(onBattery: Bool, batteryPercent: Int?, thermalSeriousOrWorse: Bool, lidClosed: Bool) {
+    public init(onBattery: Bool?, batteryPercent: Int?, thermalSeriousOrWorse: Bool, lidClosed: Bool) {
         self.onBattery = onBattery; self.batteryPercent = batteryPercent
         self.thermalSeriousOrWorse = thermalSeriousOrWorse; self.lidClosed = lidClosed
     }
 }
 
-public enum LidModeError: Error, Equatable, Sendable {
+extension LidPowerReading {
+    /// A known AC source is safe without a charge reading. Unknown source or
+    /// missing/invalid charge while on battery must never bypass the guard.
+    public var hasSafeTelemetry: Bool {
+        guard let onBattery else { return false }
+        guard onBattery else { return true }
+        guard let batteryPercent else { return false }
+        return (0...100).contains(batteryPercent)
+    }
+}
+
+public enum LidModeError: Error, Equatable, Sendable, CustomStringConvertible {
+    case telemetryUnavailable
     case notApplied(String)
     case batteryTooLow(Int)
     case tooHot
+
+    public var description: String {
+        switch self {
+        case .telemetryUnavailable: return "Не удалось определить питание или заряд аккумулятора. Режим остановлен до восстановления данных."
+        case .notApplied(let message): return message
+        case .batteryTooLow(let percent): return "Заряд аккумулятора \(percent)%. Подключите питание перед включением режима."
+        case .tooHot: return "Mac слишком сильно нагрелся. Дождитесь охлаждения."
+        }
+    }
 }
 
 /// What is persisted before the flag is touched, so a restart can undo it.
@@ -87,14 +108,18 @@ public final class LidModeController: @unchecked Sendable {
     private let settings: LidPowerSettings
     private let stateURL: URL
     private let now: () -> Date
+    private let elapsed: () -> TimeInterval
     private let lock = NSLock()
     private var record: LidModeRecord?
-    private var lastHeartbeat: Date?
+    private var lastHeartbeat: TimeInterval?
+    private var deadline: TimeInterval?
     private var lastStop: LidModeStatus.StopReason?
     private var restorationError: String?
+    private var sleepAfterRestore = false
 
-    public init(settings: LidPowerSettings, stateURL: URL, now: @escaping () -> Date = Date.init) {
-        self.settings = settings; self.stateURL = stateURL; self.now = now
+    public init(settings: LidPowerSettings, stateURL: URL, now: @escaping () -> Date = Date.init,
+                elapsed: @escaping () -> TimeInterval = LidMonotonicTime.now) {
+        self.settings = settings; self.stateURL = stateURL; self.now = now; self.elapsed = elapsed
     }
 
     // MARK: Launch recovery
@@ -119,10 +144,12 @@ public final class LidModeController: @unchecked Sendable {
 
     public func enable(maxMinutes: Int, batteryFloor: Int, power: LidPowerReading) throws -> LidModeStatus {
         lock.lock(); defer { lock.unlock() }
-        let floor = max(5, min(batteryFloor, 90))
+        let floor = max(LidModeLimits.defaultBatteryFloor, min(batteryFloor, 90))
         if power.thermalSeriousOrWorse { throw LidModeError.tooHot }
-        if power.onBattery, let percent = power.batteryPercent, percent <= floor { throw LidModeError.batteryTooLow(percent) }
-        if record != nil && restorationError == nil { lastHeartbeat = now(); return statusLocked() }
+        guard power.hasSafeTelemetry else { throw LidModeError.telemetryUnavailable }
+        if let restorationError { throw LidModeError.notApplied(restorationError) }
+        if power.onBattery == true, let percent = power.batteryPercent, percent <= floor { throw LidModeError.batteryTooLow(percent) }
+        if record != nil && restorationError == nil { lastHeartbeat = elapsed(); return statusLocked() }
         if FileManager.default.fileExists(atPath: stateURL.path) {
             restoreLocked(reason: .recoveredAfterRestart)
             guard restorationError == nil else { throw LidModeError.notApplied(restorationError!) }
@@ -144,7 +171,9 @@ public final class LidModeController: @unchecked Sendable {
             throw (error as? LidModeError) ?? LidModeError.notApplied(String(describing: error))
         }
         record = newRecord
-        lastHeartbeat = start
+        let startElapsed = elapsed()
+        lastHeartbeat = startElapsed
+        deadline = startElapsed + TimeInterval(minutes * 60)
         lastStop = nil
         return statusLocked()
     }
@@ -157,7 +186,7 @@ public final class LidModeController: @unchecked Sendable {
 
     public func heartbeat() -> LidModeStatus {
         lock.lock(); defer { lock.unlock() }
-        if record != nil && restorationError == nil { lastHeartbeat = now() }
+        if record != nil && restorationError == nil { lastHeartbeat = elapsed() }
         return statusLocked()
     }
 
@@ -176,13 +205,15 @@ public final class LidModeController: @unchecked Sendable {
         guard let current = record else { return nil }
         let reason: LidModeStatus.StopReason?
         if power.thermalSeriousOrWorse { reason = .thermal }
-        else if power.onBattery, let percent = power.batteryPercent, percent <= current.batteryFloor { reason = .batteryFloor }
-        else if now() >= current.expiresAt { reason = .timeLimit }
-        else if let beat = lastHeartbeat, now().timeIntervalSince(beat) > LidModeLimits.heartbeatTimeout { reason = .heartbeatLost }
+        else if !power.hasSafeTelemetry { reason = .telemetryUnavailable }
+        else if power.onBattery == true, let percent = power.batteryPercent, percent <= current.batteryFloor { reason = .batteryFloor }
+        else if let deadline, elapsed() >= deadline { reason = .timeLimit }
+        else if let beat = lastHeartbeat, elapsed() - beat > LidModeLimits.heartbeatTimeout { reason = .heartbeatLost }
         else { reason = nil }
         guard let reason else { return nil }
+        // Keep this intent through a failed restore so the retry also sleeps.
+        sleepAfterRestore = power.lidClosed || reason == .batteryFloor
         restoreLocked(reason: reason)
-        if power.lidClosed { settings.sleepNow() }
         return reason
     }
 
@@ -208,9 +239,20 @@ public final class LidModeController: @unchecked Sendable {
             lastStop = .failed
             return
         }
+        restorationError = nil
         record = nil
         lastHeartbeat = nil
+        deadline = nil
         lastStop = reason
+        if sleepAfterRestore {
+            do {
+                try settings.sleepNow()
+                sleepAfterRestore = false
+            } catch {
+                restorationError = "Обычный сон восстановлен, но Mac не подтвердил команду сна: \(error)"
+                lastStop = .failed
+            }
+        }
     }
 
     private func statusLocked() -> LidModeStatus {
@@ -218,7 +260,7 @@ public final class LidModeController: @unchecked Sendable {
         do { flag = try settings.sleepDisabled() }
         catch { return LidModeStatus(error: "Не удалось прочитать состояние сна: \(error)") }
         return LidModeStatus(active: record != nil && restorationError == nil, sleepDisabledNow: flag,
-                      enabledAt: record?.enabledAt, expiresAt: record?.expiresAt,
+                      enabledAt: record?.enabledAt, expiresAt: deadline.map { now().addingTimeInterval(max(0, $0 - elapsed())) },
                       batteryFloor: record?.batteryFloor ?? LidModeLimits.defaultBatteryFloor, lastStopReason: lastStop, error: restorationError)
     }
 
@@ -249,7 +291,7 @@ public struct PmsetPowerSettings: LidPowerSettings {
         _ = try Self.run(["-a", "disablesleep", value ? "1" : "0"])
     }
 
-    public func sleepNow() { _ = try? Self.run(["sleepnow"]) }
+    public func sleepNow() throws { _ = try Self.run(["sleepnow"]) }
 
     /// `pmset -g` lists `SleepDisabled  1` only while the flag is set.
     public static func parseSleepDisabled(_ output: String) -> Bool {

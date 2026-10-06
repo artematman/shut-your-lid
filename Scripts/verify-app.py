@@ -16,3 +16,5 @@ for path,bundle_id in [(app,identity),(c/'MacOS/LidPowerHelper',identity+'.power
   assert not any('/Users/' in line or '/private/tmp/' in line for line in deps)
 subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
 print(json.dumps({'bundle':identity,'version':p['CFBundleShortVersionString'],'signature':'Developer ID verified','helper':'own daemon and Mach service verified'},indent=2))
+
+subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("privacy-gate.py")), "--app", str(app)], check=True)

@@ -84,7 +84,7 @@ struct RecoveryTests {
  func leaseBoundary() throws {
   final class Clock { var date=Date() }
   let clock=Clock();let power=Power();let file=url();defer { try? FileManager.default.removeItem(at:file) }
-  let controller=LidModeController(settings:power,stateURL:file,now:{clock.date})
+  let controller=LidModeController(settings:power,stateURL:file,now:{clock.date},elapsed:{clock.date.timeIntervalSince1970})
   _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool)
   clock.date += 90
   #expect(controller.tick(power:cool) == nil)

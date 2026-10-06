@@ -1,7 +1,6 @@
 import Foundation
 import Darwin
 import IOKit.ps
-import Security
 #if canImport(LidModeFeature)
 import LidModeFeature
 #endif
@@ -27,20 +26,14 @@ let controller = LidModeController(settings: PmsetPowerSettings(), stateURL: sta
 controller.recoverOnLaunch()
 
 func powerReading() -> LidPowerReading {
-    var onBattery = false
-    var percent: Int?
+    var descriptions: [[String: Any]]?
     if let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
        let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] {
-        for source in list {
-            guard let info = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any] else { continue }
-            if let state = info[kIOPSPowerSourceStateKey] as? String { onBattery = state == kIOPSBatteryPowerValue }
-            if let current = info[kIOPSCurrentCapacityKey] as? Int, let max = info[kIOPSMaxCapacityKey] as? Int, max > 0 {
-                percent = current * 100 / max
-            }
-        }
+        descriptions = list.compactMap { IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any] }
     }
+    let battery = LidPowerTelemetry.decode(descriptions)
     let thermal = ProcessInfo.processInfo.thermalState
-    return LidPowerReading(onBattery: onBattery, batteryPercent: percent,
+    return LidPowerReading(onBattery: battery.onBattery, batteryPercent: battery.percent,
                            thermalSeriousOrWorse: thermal == .serious || thermal == .critical,
                            lidClosed: lidClosed())
 }
@@ -94,7 +87,7 @@ listener.delegate = delegate
 listener.resume()
 
 // Guards every 10 s while active; exit when idle so nothing stays running.
-var idleSince = Date()
+var idleSince = LidMonotonicTime.now()
 let timer = DispatchSource.makeTimerSource(queue: .main)
 timer.schedule(deadline: .now() + 10, repeating: 10)
 timer.setEventHandler {
@@ -105,8 +98,8 @@ timer.setEventHandler {
     }
     let status = controller.status()
     if status.active || status.error != nil {
-        idleSince = Date()
-    } else if delegate.connections == 0, Date().timeIntervalSince(idleSince) > 60 {
+        idleSince = LidMonotonicTime.now()
+    } else if delegate.connections == 0, LidMonotonicTime.now() - idleSince > 60 {
         exit(0)
     }
 }
