@@ -1,5 +1,9 @@
 import Foundation
 public func loc(_ key: String, _ arguments: CVarArg...) -> String {
  let strings: [String: String] = ["lid.title": "Работать с закрытой крышкой", "lid.detail.off %@": "Работает до %@, пока приложение открыто. При заряде 10% и ниже на аккумуляторе режим выключится и Mac уснёт. При перегреве или потере данных о питании режим остановится.", "lid.detail.needsApproval": "Разрешите Shut Your Lid работать в фоне. В настройках macOS включите переключатель рядом с «Shut Your Lid». Это нужно один раз.", "lid.detail.working": "Применяем…", "lid.detail.on %@": "Режим подтверждён помощником до %@. Приложение должно оставаться открытым.", "lid.detail.failed %@": "Ошибка: %@. Проверьте состояние режима перед закрытием крышки.", "lid.unavailable": "Недоступно в этой сборке: нет системного помощника.", "lid.helperGone": "системный помощник не отвечает", "lid.openApproval": "Открыть настройки macOS", "lid.openApproval.help": "Откроет Системные настройки на странице, где разрешают фоновые объекты", "lid.stop.appGone": "Выключено: Shut Your Lid был закрыт.", "lid.stop.battery": "Выключено: заряд аккумулятора достиг 10%.", "lid.stop.thermal": "Выключено: Mac нагрелся.", "lid.stop.time": "Выключено: выбранное время истекло.", "lid.stop.recovered": "Восстановлен обычный сон после перезапуска.", "lid.stop.telemetry": "Выключено: не удалось определить питание или заряд.", "lid.stop.failed": "Ошибка восстановления режима."]
- return String(format: strings[key] ?? key, arguments: arguments)
+ let template = strings[key] ?? key
+ guard !arguments.isEmpty else { return template }
+ // Templates use %@ for substitution; all other percent signs are literal.
+ let format = template.replacingOccurrences(of: "%", with: "%%").replacingOccurrences(of: "%%@", with: "%@")
+ return String(format: format, arguments: arguments)
 }

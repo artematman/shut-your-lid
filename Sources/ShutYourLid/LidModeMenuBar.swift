@@ -185,6 +185,8 @@ struct LidModeQuickView: View {
 
 struct LidDurationPicker: View {
     @Bindable var model: LidModeModel
+    @State private var customText = ""
+    @FocusState private var editingMinutes: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -204,10 +206,9 @@ struct LidDurationPicker: View {
                 HStack {
                     Text("Минуты")
                     Spacer()
-                    TextField("1–720", value: Binding(
-                        get: { model.maxMinutes },
-                        set: { model.setDuration(minutes: $0) }
-                    ), format: .number.grouping(.never))
+                    TextField("1–720", text: $customText)
+                    .focused($editingMinutes)
+                    .onSubmit { commitCustomText() }
                     .multilineTextAlignment(.trailing)
                     .frame(width: 64)
                     .textFieldStyle(.roundedBorder)
@@ -219,7 +220,27 @@ struct LidDurationPicker: View {
                 }
             }
         }
+        .onAppear { customText = String(model.maxMinutes) }
+        .onChange(of: customText) { _, value in
+            // Keep editing text intact. Only validated values reach the model.
+            if let minutes = Int(value), (1...LidModeLimits.maxMinutesCap).contains(minutes) {
+                model.setDuration(minutes: minutes)
+            }
+        }
+        .onChange(of: model.maxMinutes) { _, minutes in
+            if !editingMinutes { customText = String(minutes) }
+        }
+        .onChange(of: editingMinutes) { _, editing in
+            if !editing { commitCustomText() }
+        }
         .disabled(!model.canChangeDuration)
         .help(model.canChangeDuration ? "От 1 минуты до 12 часов. Выбранное время сохраняется." : "Чтобы задать новый срок, выключите режим и включите его снова.")
     }
+    private func commitCustomText() {
+        if let minutes = Int(customText.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            model.setDuration(minutes: minutes)
+        }
+        customText = String(model.maxMinutes)
+    }
+
 }

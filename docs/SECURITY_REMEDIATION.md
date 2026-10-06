@@ -26,3 +26,7 @@ Keep the existing repository private. Rewriting a branch removes email from that
 Notarization and stapling, actual negative XPC transport tests, real lid closure with task continuity, and failure recovery on hardware remain release requirements. The current build is signed but is not a notarized public release. No signing/notarization passwords or private keys should be committed, pasted into chat or added to build logs. A local Keychain profile can supply notarization credentials when the owner configures it.
 
 System command execution still depends on macOS responsiveness; `pmset`, `pgrep` and `launchctl` do not yet have explicit per-command timeouts. This is a remaining robustness limitation, not a demonstrated secret-exfiltration path.
+
+## Verification for this revision
+
+39 automated tests passed, including preset/custom duration, preference persistence, the 10% boundary, known AC, unknown telemetry, monotonic deadlines under clock corrections, failed restore and failed sleep retries, and actual AppKit panel sizing. Live UI checks confirmed a 30-minute preset and typing a 45-minute custom interval; the UI was returned to the four-hour default afterwards. The signed app and daemon pass artifact and privacy checks. The helper was not registered or enabled during these checks, and physical sleep/lid operation still awaits owner acceptance.

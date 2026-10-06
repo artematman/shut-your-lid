@@ -179,6 +179,12 @@ struct DurationPreferenceTests {
         restored.setDuration(minutes: 720)
         #expect(restored.maxMinutes == 37 && !restored.canChangeDuration)
     }
+    @Test("duration detail keeps the literal battery percentage")
+    func percentText() {
+        #expect(loc("lid.detail.off %@", "30 мин").contains("10%"))
+        #expect(loc("lid.detail.off %@", "30 мин").contains("30 мин"))
+        #expect(loc("lid.stop.battery").contains("10%"))
+    }
     @Test("invalid duration is bounded before persisting")
     func bounds() {
         let model = LidModeModel(system: .init(serviceState: { .notRegistered }, register: {}, openLoginItems: {}, call: { _ in nil }))
