@@ -44,7 +44,7 @@ struct LidModeCoreTests {
         #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 
-    @Test("authorization/apply failure: never reported as on, previous value kept, no state left")
+    @Test("authorization/apply failure: never reported as on; failed restoration retains its recovery record")
     func failures() {
         let pmset = FakePmset(); pmset.failSet = true
         let (controller, file) = make(pmset, Clock())
@@ -104,7 +104,7 @@ struct LidModeCoreTests {
         #expect(pmset.flag)
     }
 
-    @Test("a flag someone else set (another tool) is left alone; only our change is undone, to its previous value")
+    @Test("an existing foreign flag blocks enable and is never cleared")
     func foreignFlag() throws {
         let pmset = FakePmset(); pmset.flag = true          // set by another tool before us
         let (controller, _) = make(pmset, Clock())
@@ -161,7 +161,7 @@ struct LidModeSwitchTests {
         #expect(model.phase == .needsApproval && !model.isOn && fake.opened == 1)
         #expect(fake.requests.isEmpty, "nothing was asked of the helper yet")
         fake.service = .enabled                      // the user approved in System Settings
-        await model.refresh()                        // back in Island
+        await model.refresh()                        // back in Shut Your Lid
         #expect(model.isOn && fake.requests == ["enable"])
     }
 
