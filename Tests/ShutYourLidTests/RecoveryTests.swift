@@ -47,14 +47,66 @@ struct RecoveryTests {
   power.failRestore=false
   #expect(restarted.recoverOnLaunch().error == nil && !power.flag)
  }
- @Test("corrupt persistence blocks enable and never alters the power flag")
- func corruptRecord() throws {
+ @Test("corrupt record restores normal sleep, verifies it, then removes the file and allows enable")
+ func corruptRecordRestores() throws {
   let power=Power();let file=url();defer { try? FileManager.default.removeItem(at:file) }
+  power.flag=true
   try Data("invalid".utf8).write(to:file)
   let controller=LidModeController(settings:power,stateURL:file)
-  #expect(controller.recoverOnLaunch().error != nil)
+  let status=controller.recoverOnLaunch()
+  #expect(status.error == nil && !power.flag && !FileManager.default.fileExists(atPath:file.path))
+  _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool)
+  #expect(power.flag)
+ }
+ @Test("corrupt record with a failed or ignored reset keeps the file and the error, blocks enable and retries on tick")
+ func corruptRecordFailedReset() throws {
+  for ignored in [false, true] {
+   let power=Power();let file=url();defer { try? FileManager.default.removeItem(at:file) }
+   power.flag=true
+   if ignored { power.ignoredRestore=true } else { power.failRestore=true }
+   try Data("invalid".utf8).write(to:file)
+   let controller=LidModeController(settings:power,stateURL:file)
+   #expect(controller.recoverOnLaunch().error != nil)
+   #expect(power.flag && FileManager.default.fileExists(atPath:file.path))
+   #expect(throws:LidModeError.self) { _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool) }
+   #expect(controller.tick(power:cool) == .failed && controller.status().error != nil)
+   power.failRestore=false; power.ignoredRestore=false
+   _ = controller.tick(power:cool)
+   #expect(!power.flag && !FileManager.default.fileExists(atPath:file.path) && controller.status().error == nil)
+  }
+ }
+ @Test("no recovery file: launch, termination and ticks never touch a flag set by someone else")
+ func noFileLeavesFlag() {
+  let power=Power();let file=url()
+  power.flag=true
+  let controller=LidModeController(settings:power,stateURL:file)
+  #expect(controller.recoverOnLaunch().error == nil)
+  #expect(controller.tick(power:cool) == nil)
+  #expect(controller.prepareForTermination())
+  #expect(power.flag)
+ }
+ @Test("termination restores normal sleep, confirms it and refuses any new lease")
+ func terminationRestores() throws {
+  let power=Power();let file=url();defer { try? FileManager.default.removeItem(at:file) }
+  let controller=LidModeController(settings:power,stateURL:file)
+  _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool)
+  #expect(power.flag)
+  #expect(controller.prepareForTermination())
+  #expect(!power.flag && !FileManager.default.fileExists(atPath:file.path))
   #expect(throws:LidModeError.self) { _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool) }
-  #expect(!power.flag && FileManager.default.fileExists(atPath:file.path))
+  #expect(try !controller.updateDuration(maxMinutes:60,power:cool).active && !power.flag)
+ }
+ @Test("termination with a failed restore reports failure and keeps the record for the next launch")
+ func terminationFailedRestore() throws {
+  let power=Power();let file=url();defer { try? FileManager.default.removeItem(at:file) }
+  let controller=LidModeController(settings:power,stateURL:file)
+  _ = try controller.enable(maxMinutes:240,batteryFloor:20,power:cool)
+  power.failRestore=true
+  #expect(!controller.prepareForTermination())
+  #expect(power.flag && FileManager.default.fileExists(atPath:file.path))
+  power.failRestore=false
+  let relaunched=LidModeController(settings:power,stateURL:file)
+  #expect(relaunched.recoverOnLaunch().error == nil && !power.flag)
  }
  @Test("a read failure never defaults to sleep enabled or changes pmset")
  func readFailure() {
@@ -124,5 +176,28 @@ struct MigrationTests {
   await model.setEnabled(true)
   #expect(model.phase == .failed("legacy conflict") && !model.isOn)
   #expect(!registered && !requested && !opened)
+ }
+}
+
+@Suite("Helper launch constraint")
+struct HelperLaunchConstraintTests {
+ @Test("daemon plist pins launchd to the Developer ID helper of the expected team and identifier")
+ func spawnConstraint() throws {
+  let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+  let app = "com.artemkharitonov.shutyourlid"
+  // Same substitution as Scripts/build-app.sh.
+  let text = try String(contentsOf: root.appendingPathComponent("App/power.plist.template"), encoding: .utf8)
+   .replacingOccurrences(of: "__LABEL__", with: LidPowerHelperIdentity.label(forApp: app))
+   .replacingOccurrences(of: "__APP_ID__", with: app)
+  let plist = try #require(try PropertyListSerialization.propertyList(from: Data(text.utf8), format: nil) as? [String: Any])
+  let constraint = try #require(plist["SpawnConstraint"] as? [String: Any])
+  #expect(Set(constraint.keys) == ["team-identifier", "signing-identifier", "validation-category"])
+  #expect(constraint["team-identifier"] as? String == "8XZ7Z4UR6C")
+  #expect(constraint["signing-identifier"] as? String == LidPowerHelperIdentity.label(forApp: app))
+  #expect(constraint["validation-category"] as? Int == 6)   // Developer ID
+  #expect(plist["BundleProgram"] as? String == "Contents/MacOS/LidPowerHelper")
+  // The app-side XPC requirement for the helper names the same identity.
+  let requirement = LidPowerHelperIdentity.clientRequirement(appBundleID: LidPowerHelperIdentity.label(forApp: app), team: "8XZ7Z4UR6C")
+  #expect(requirement.contains(#"identifier "com.artemkharitonov.shutyourlid.power""#) && requirement.contains("8XZ7Z4UR6C"))
  }
 }

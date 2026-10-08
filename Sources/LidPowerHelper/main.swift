@@ -56,6 +56,14 @@ final class Endpoint: NSObject, LidPowerControl {
             reply(LidModeWire.encode(status))
         }
     }
+    func updateDuration(maxMinutes: Int, reply: @escaping @Sendable (Data) -> Void) {
+        do { reply(LidModeWire.encode(try controller.updateDuration(maxMinutes: maxMinutes, power: powerReading()))) }
+        catch {
+            var status = controller.status()
+            status.error = String(describing: error)
+            reply(LidModeWire.encode(status))
+        }
+    }
     func disable(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.disable(reason: .user))) }
     func heartbeat(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.heartbeat())) }
 }
@@ -80,6 +88,18 @@ final class Listener: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
         return true
     }
 }
+
+// launchd ends the job with SIGTERM (background item switched off, app
+// removed, update). Restore normal sleep before exiting, outside the POSIX
+// handler: the default action is ignored and a dispatch source on the main
+// queue does the work. A failed restore exits non-zero so it is never
+// reported as clean; the record stays for the next launch to retry.
+signal(SIGTERM, SIG_IGN)
+let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+termination.setEventHandler {
+    exit(controller.prepareForTermination() ? 0 : 1)
+}
+termination.resume()
 
 let delegate = Listener()
 let listener = NSXPCListener(machServiceName: LidPowerHelperIdentity.label(forApp: appBundleID))

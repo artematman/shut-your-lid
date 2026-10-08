@@ -2,6 +2,7 @@ import Foundation
 import IOKit.ps
 import Testing
 @testable import LidModeFeature
+@testable import ShutYourLid
 
 @Suite("Duration, battery and monotonic safety", .serialized)
 struct DurationAndBatteryTests {
@@ -176,14 +177,79 @@ struct DurationPreferenceTests {
         #expect(restored.maxMinutes == 37 && restored.usesCustomDuration)
         await restored.setEnabled(true)
         #expect(sent?.0 == 37 && sent?.1 == 10)
+        // A running lease accepts a new duration; the model debounces the helper update.
         restored.setDuration(minutes: 720)
-        #expect(restored.maxMinutes == 37 && !restored.canChangeDuration)
+        #expect(restored.maxMinutes == 720 && restored.canChangeDuration)
+        await restored.setEnabled(false)
     }
-    @Test("duration detail keeps the literal battery percentage")
+    @Test("status and protection texts keep the literal battery percentage in both languages")
     func percentText() {
-        #expect(loc("lid.detail.off %@", "30 мин").contains("10%"))
-        #expect(loc("lid.detail.off %@", "30 мин").contains("30 мин"))
-        #expect(loc("lid.stop.battery").contains("10%"))
+        for language in [LidLanguage.ru, .en] {
+            #expect(lidString("status.on.until %@", language: language, ["18:30"]).hasSuffix("18:30"))
+            #expect(lidString("settings.protection.battery", language: language).contains("10%"))
+            #expect(lidString("lid.stop.battery", language: language).contains("10%"))
+        }
+    }
+    @Test("every Russian string has an English counterpart with the same placeholders")
+    func languageParity() {
+        #expect(Set(lidStringsRU.keys) == Set(lidStringsEN.keys))
+        for (key, ru) in lidStringsRU {
+            #expect(ru.components(separatedBy: "%@").count == lidStringsEN[key]?.components(separatedBy: "%@").count, "\(key)")
+        }
+    }
+    @Test("status says «Включено до HH:mm» and adds «завтра» past midnight, without repeating the mode name")
+    @MainActor func onUntilText() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Moscow")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 7, hour: 21, minute: 0))!
+        let sameDay = calendar.date(from: DateComponents(year: 2026, month: 10, day: 7, hour: 23, minute: 5))!
+        let nextDay = calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 3, minute: 48))!
+        #expect(LidModeStatusText.onUntil(sameDay, now: now, calendar: calendar) == loc("status.on.until %@", "23:05"))
+        #expect(LidModeStatusText.onUntil(nextDay, now: now, calendar: calendar) == loc("status.on.tomorrow %@", "03:48"))
+        #expect(LidModeStatusText.onUntil(nil, now: now, calendar: calendar) == loc("status.on"))
+        #expect(lidString("status.on.until %@", language: .ru, ["03:48"]) == "Включено до 03:48")
+        #expect(lidString("status.on.tomorrow %@", language: .ru, ["03:48"]) == "Включено до 03:48 завтра")
+        #expect(lidString("status.on.tomorrow %@", language: .en, ["03:48"]) == "On until 03:48 tomorrow")
+        for language in [LidLanguage.ru, .en] {
+            #expect(!lidString("status.on.until %@", language: language, ["03:48"]).contains(lidString("lid.title", language: language)))
+        }
+    }
+    @Test("interface carries no explanation that the app must stay open, and no old brand")
+    func noStayOpenOrOldBrand() {
+        for table in [lidStringsRU, lidStringsEN] {
+            for text in table.values {
+                #expect(!text.contains("открыт") || text.contains("Открыть"), "\(text)")
+                #expect(!text.localizedCaseInsensitiveContains("app is open") && !text.contains("Island"), "\(text)")
+            }
+        }
+    }
+    @Test("durations use full words with correct Russian plural forms and full English units")
+    func fullWordDurations() {
+        let ru: [Int: String] = [1: "1 минута", 2: "2 минуты", 5: "5 минут", 11: "11 минут", 21: "21 минута", 22: "22 минуты", 30: "30 минут",
+                                 45: "45 минут", 60: "1 час", 90: "1 час 30 минут", 120: "2 часа", 240: "4 часа", 300: "5 часов",
+                                 360: "6 часов", 480: "8 часов", 661: "11 часов 1 минута", 720: "12 часов", 1260: "21 час", 1320: "22 часа"]
+        for (minutes, text) in ru { #expect(lidDuration(minutes: minutes, language: .ru) == text) }
+        let en: [Int: String] = [1: "1 minute", 30: "30 minutes", 60: "1 hour", 90: "1 hour 30 minutes", 121: "2 hours 1 minute", 360: "6 hours", 720: "12 hours"]
+        for (minutes, text) in en { #expect(lidDuration(minutes: minutes, language: .en) == text) }
+    }
+    @Test("settings texts: no ellipsis on Custom or the login-items link, no 'turn off to change' requirement")
+    func settingsTexts() {
+        for language in [LidLanguage.ru, .en] {
+            #expect(!lidString("settings.duration.custom", language: language).contains("…"))
+            #expect(!lidString("settings.loginItems", language: language).contains("…"))
+        }
+        #expect(lidStringsRU["settings.duration.locked"] == nil && lidStringsEN["settings.duration.locked"] == nil)
+        #expect(!lidStringsRU.values.contains { $0.contains("чтобы изменить длительность") })
+    }
+    @Test("model duration titles are the full-word durations")
+    func durationTitles() {
+        for minutes in [1, 45, 60, 90, 240, 360, 720] {
+            #expect(LidModeModel.durationTitle(minutes: minutes) == lidDuration(minutes: minutes))
+        }
+        if LidLanguage.current == .ru {
+            #expect(LidModeModel.durationTitle(minutes: 90) == "1 час 30 минут")
+            #expect(LidModeModel.durationTitle(minutes: 360) == "6 часов")
+        }
     }
     @Test("invalid duration is bounded before persisting")
     func bounds() {

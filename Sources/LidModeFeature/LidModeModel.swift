@@ -19,7 +19,7 @@ import ServiceManagement
     }
 
     public enum ServiceState: Equatable, Sendable { case notRegistered, enabled, requiresApproval, notFound }
-    public enum Request: Sendable { case status, enable(maxMinutes: Int, batteryFloor: Int), disable, heartbeat }
+    public enum Request: Sendable { case status, enable(maxMinutes: Int, batteryFloor: Int), updateDuration(maxMinutes: Int), disable, heartbeat }
 
     /// Seams for tests; production values use SMAppService and XPC.
     public struct System {
@@ -38,7 +38,7 @@ import ServiceManagement
     public private(set) var phase: Phase = .off
     /// Why the mode turned itself off last time (battery, heat, limit, app gone).
     public private(set) var lastStop: LidModeStatus.StopReason?
-    public static let durationPresets = [30, 60, 120, 240, 480, 720]
+    public static let durationPresets = [30, 60, 120, 240, 360, 480, 720]
     public private(set) var maxMinutes: Int
     public var usesCustomDuration = false
     public let batteryFloor = LidModeLimits.defaultBatteryFloor
@@ -46,6 +46,13 @@ import ServiceManagement
 
     private let system: System
     @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
+    /// Lease heartbeat period (the helper's timeout is 90 s); shortened only in tests.
+    @ObservationIgnored var heartbeatInterval: Duration = .seconds(30)
+    @ObservationIgnored private var durationTask: Task<Void, Never>?
+    @ObservationIgnored private var durationRevision = 0
+    @ObservationIgnored private var operationVersion = 0
+    @ObservationIgnored private var updatingDuration = false
+    @ObservationIgnored private var statusRevision = 0
 
     public init(system: System, preferences: UserDefaults? = nil) {
         self.system = system
@@ -57,29 +64,73 @@ import ServiceManagement
 
     public var canChangeDuration: Bool {
         switch phase {
-        case .on, .working, .needsApproval: return false
+        case .working, .needsApproval: return false
         default: return true
         }
     }
 
-    /// A running lease is immutable; the chosen duration applies to the next start.
+    /// Update the preference immediately; coalesce active lease edits before sending them.
     public func setDuration(minutes: Int) {
         guard canChangeDuration else { return }
         maxMinutes = min(max(1, minutes), LidModeLimits.maxMinutesCap)
         preferences?.set(maxMinutes, forKey: "durationMinutes")
+        durationRevision += 1
+        guard isOn, durationTask == nil else { return }
+        let version = operationVersion
+        durationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if self.operationVersion == version { self.durationTask = nil; self.updatingDuration = false } }
+            while !Task.isCancelled && self.operationVersion == version && self.isOn {
+                let revision = self.durationRevision
+                do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+                guard self.operationVersion == version, self.isOn else { return }
+                if revision != self.durationRevision { continue }
+                self.updatingDuration = true
+                self.statusRevision += 1
+                let status = await self.system.call(.updateDuration(maxMinutes: self.maxMinutes))
+                guard !Task.isCancelled, self.operationVersion == version, self.isOn else { return }
+                if let status, status.error == nil {
+                    self.updatingDuration = false
+                    self.statusRevision += 1
+                    self.apply(status)
+                } else {
+                    // Never display an off/error switch while knowingly leaving
+                    // the previous active lease running after a failed edit.
+                    let reason = status?.error ?? loc("lid.helperGone")
+                    self.phase = .working
+                    self.stopHeartbeat()
+                    _ = await self.system.call(.disable)
+                    guard !Task.isCancelled, self.operationVersion == version else { return }
+                    self.updatingDuration = false
+                    self.statusRevision += 1
+                    self.phase = .failed(reason)
+                    return
+                }
+                if revision == self.durationRevision { return }
+            }
+        }
+    }
+
+    private func beginOperation() {
+        operationVersion += 1
+        durationTask?.cancel()
+        durationTask = nil
+        updatingDuration = false
     }
 
     public var durationTitle: String { Self.durationTitle(minutes: maxMinutes) }
 
     public static func durationTitle(minutes: Int) -> String {
-        if minutes % 60 == 0 { return "\(minutes / 60) ч" }
-        return "\(minutes) мин"
+        lidDuration(minutes: minutes)
     }
 
     public var isOn: Bool { if case .on = phase { return true }; return false }
 
     /// Re-reads the real state (on appear and on return from System Settings).
     public func refresh() async {
+        guard phase != .working, !updatingDuration else { return }
+        let version = operationVersion
+        let statusVersion = statusRevision
         switch system.serviceState() {
         case .notFound: phase = .unavailable(loc("lid.unavailable")); stopHeartbeat(); return
         case .requiresApproval:
@@ -94,7 +145,9 @@ import ServiceManagement
             await turnOn()
             return
         }
-        guard let status = await system.call(.status) else { phase = .failed(loc("lid.helperGone")); stopHeartbeat(); return }
+        let status = await system.call(.status)
+        guard operationVersion == version, statusRevision == statusVersion, phase != .working, !updatingDuration else { return }
+        guard let status else { phase = .failed(loc("lid.helperGone")); stopHeartbeat(); return }
         apply(status)
     }
 
@@ -105,6 +158,8 @@ import ServiceManagement
     public func openApproval() { system.openLoginItems() }
 
     private func turnOn() async {
+        beginOperation()
+        let version = operationVersion
         if let reason = system.preflight() { phase = .failed(reason); stopHeartbeat(); return }
         phase = .working
         switch system.serviceState() {
@@ -121,7 +176,9 @@ import ServiceManagement
             phase = .needsApproval; system.openLoginItems(); return
         case .enabled: break
         }
-        guard let status = await system.call(.enable(maxMinutes: maxMinutes, batteryFloor: batteryFloor)) else {
+        let result = await system.call(.enable(maxMinutes: maxMinutes, batteryFloor: batteryFloor))
+        guard operationVersion == version else { return }
+        guard let status = result else {
             phase = .failed(loc("lid.helperGone")); return
         }
         if let error = status.error { phase = .failed(error); return }
@@ -129,10 +186,13 @@ import ServiceManagement
     }
 
     private func turnOff() async {
+        beginOperation()
+        let version = operationVersion
         stopHeartbeat()
         guard system.serviceState() == .enabled else { phase = .off; return }
         phase = .working
         let status = await system.call(.disable)
+        guard operationVersion == version else { return }
         if let status { apply(status) } else { phase = .failed(loc("lid.helperGone")) }
     }
 
@@ -152,9 +212,15 @@ import ServiceManagement
         guard heartbeatTask == nil else { return }
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: self?.heartbeatInterval ?? .seconds(30))
                 guard let self, !Task.isCancelled else { return }
-                if let status = await self.system.call(.heartbeat) { self.apply(status) } else { self.phase = .off; self.stopHeartbeat() }
+                let version = self.operationVersion
+                let statusVersion = self.statusRevision
+                let status = await self.system.call(.heartbeat)
+                guard !Task.isCancelled, self.operationVersion == version else { return }
+                if self.updatingDuration || self.statusRevision != statusVersion { continue }
+                // No reply is not «off»: the lease may still be active on the helper.
+                if let status { self.apply(status) } else { self.phase = .failed(loc("lid.connectionLost")); self.stopHeartbeat() }
             }
         }
     }
@@ -172,7 +238,7 @@ public extension LidModeModel.System {
         return Self(
             preflight: {
                 LegacyModeConflict.isPresent()
-                    ? "Сначала выключите режим крышки в Island Pro, завершите Island Pro и отключите его фоновый помощник в настройках macOS."
+                    ? loc("lid.conflict")
                     : nil
             },
             serviceState: {
@@ -214,16 +280,33 @@ public extension LidModeModel.System {
 
     init(machService: String) { self.machService = machService }
 
+    /// For tests: whether a connection is currently held (dropped on invalidation).
+    var hasConnection: Bool { connection != nil }
+
     private func proxy(_ onError: @escaping @Sendable () -> Void) -> LidPowerControl? {
         if connection == nil {
             let new = NSXPCConnection(machServiceName: machService, options: .privileged)
             new.setCodeSigningRequirement(LidPowerHelperIdentity.clientRequirement(appBundleID: machService, team: "8XZ7Z4UR6C"))
             new.remoteObjectInterface = NSXPCInterface(with: LidPowerControl.self)
-            new.invalidationHandler = { [weak self] in Task { @MainActor in self?.connection = nil } }
+            // NSXPC calls this on its own queue: the handler is built nonisolated
+            // and only hops to the main actor to drop the dead connection.
+            new.invalidationHandler = Self.xpcCallback { [weak self] in Task { @MainActor in self?.connection = nil } }
             new.resume()
             connection = new
         }
-        return connection?.remoteObjectProxyWithErrorHandler { _ in onError() } as? LidPowerControl
+        return connection?.remoteObjectProxyWithErrorHandler(Self.xpcErrorHandler(onError)) as? LidPowerControl
+    }
+
+    // XPC callbacks run on NSXPC's private queue. A closure written inside this
+    // @MainActor class would inherit main-actor isolation and trap there
+    // (`_dispatch_assert_queue_fail`), so they are created in nonisolated code
+    // and only call @Sendable work.
+    nonisolated private static func xpcCallback(_ work: @escaping @Sendable () -> Void) -> () -> Void {
+        { work() }
+    }
+
+    nonisolated private static func xpcErrorHandler(_ work: @escaping @Sendable () -> Void) -> (any Error) -> Void {
+        { _ in work() }
     }
 
     func call(_ request: LidModeModel.Request) async -> LidModeStatus? {
@@ -234,6 +317,7 @@ public extension LidModeModel.System {
             switch request {
             case .status: proxy.status(reply: reply)
             case .enable(let minutes, let floor): proxy.enable(maxMinutes: minutes, batteryFloor: floor, reply: reply)
+            case .updateDuration(let minutes): proxy.updateDuration(maxMinutes: minutes, reply: reply)
             case .disable: proxy.disable(reply: reply)
             case .heartbeat: proxy.heartbeat(reply: reply)
             }

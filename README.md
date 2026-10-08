@@ -1,60 +1,68 @@
-# Shut Your Lid
+<p align="center"><img src="docs/images/logo.png" width="220" alt="Red lips zipped shut — Shut Your Lid" /></p>
+<h1 align="center">Shut Your Lid</h1>
+<p align="center"><strong>Close your MacBook. Keep things running.</strong><br>A small, local macOS menu bar app with a little attitude.</p>
+<p align="center">macOS 14+ · Apple Silicon & Intel · Russian & English · Open source</p>
 
-Standalone macOS menu bar utility for keeping a MacBook working with its lid closed. Version 0.2.0, macOS 14+, current build arm64. Hardware acceptance is pending; this is a signed local preview, not a notarized public release.
+> **0.3.8 release candidate.** Developer ID signed, accepted by Apple notarization and stapled. Source and this project page are available for review. Clean-system helper and hardware acceptance are still pending, so a stable public binary download is not advertised yet.
 
-Click the laptop icon for the compact switch «Работать с закрытой крышкой». The panel fits its content, anchors to the icon on its display, and closes with Escape or an outside click. Choose 30 minutes, 1, 2, 4, 8 or 12 hours, or enter a custom duration from 1 to 720 minutes. The last choice is saved locally; four hours is the initial default. A running duration is fixed: switch off before selecting a new duration. The switch becomes on only after the helper confirms the actual sleep-disabled flag. Quit is available in the panel and ends the lease.
+## One switch. Your time.
 
-## Start and migrate
+Keep your MacBook working with its lid closed for a duration you choose. Launching from the Dock shows the centered lips animation, which folds away into the menu bar. Click the laptop in the menu bar to turn the mode on; settings stay on their own page. The confirmed deadline appears below the switch.
 
-1. Turn off closed-lid mode in Island Pro. Quit Island Pro and disable its background helper in macOS System Settings → General → Login Items & Extensions. Do not remove Island Pro yet. Its existing daemon or process blocks this app from registering or enabling its own helper.
-2. Put `Shut Your Lid.app` in `/Applications` and launch it.
-3. Click its laptop icon and turn on the switch. macOS must approve the new helper separately. Use «Открыть настройки macOS» and approve the background item for Shut Your Lid (macOS may display the developer name Artem Kharitonov).
-4. Return to the app and open its menu again. The app refreshes authorization after returning to it and on panel opening. Only helper confirmation displays on.
-5. Keep the app running. Complete the physical lid test below before relying on it.
+- **Your duration:** 30 minutes through 12 hours, or any whole minute with the custom slider. Four hours is the initial default.
+- **Change it while running:** a duration change starts the selected remaining time from that change, after the system helper confirms it.
+- **Battery guard:** at 10% or lower on battery, the app restores ordinary sleep and asks your Mac to sleep. Normal checks run every 10 seconds.
+- **Temperature guard:** serious overheating or unavailable power information stops the mode.
+- **A proper welcome:** the approved lips blow a kiss and zip shut; in the graffiti marker wordmark the last “d” tips over and lands as a “p” — “Shut Your Lip.” The first launch then points out the menu bar control; later launches fold straight into it.
+- **Native controls:** Liquid Glass on macOS 26+, with a material fallback on older supported systems, accessible controls and reduced motion support.
+- **Automatic language:** Russian when Russian is the first preferred macOS language; English otherwise.
 
-No old permission, TCC entry, state file or XPC identity is reused. Island Pro's source and installed app remain unchanged. Removing its closed-lid feature is a separate step after hardware acceptance.
+## A look inside
 
-## Protections
+<p align="center"><img src="docs/images/menu.png" width="340" alt="Compact menu with the closed-lid switch" /> <img src="docs/images/settings.png" width="340" alt="Custom duration and protection settings" /></p>
+<p align="center"><img src="docs/images/splash.png" width="340" alt="Transparent launch animation: zipped lips and the Shut Your Lip marker wordmark" /> <img src="docs/images/welcome.png" width="340" alt="First launch: lips, Lid to Lip wordmark and menu bar guide" /></p>
 
-- Own signed SMAppService daemon: `com.artemkharitonov.shutyourlid.power`.
-- Own app: `com.artemkharitonov.shutyourlid`.
-- Own executable: `LidPowerHelper`; both directions require the expected code signing identifier and Developer ID team `8XZ7Z4UR6C`.
-- Root-owned private persistence: `/Library/Application Support/ShutYourLid/com.artemkharitonov.shutyourlid.lid-mode.json`.
-- Writes previous sleep state before changing `pmset disablesleep`; restores on disable, disconnect, lease expiry, guard or daemon restart.
-- Default four-hour limit, 10% battery floor, serious/critical thermal stop, 30-second app heartbeat and 90-second lease; daemon checks every ten seconds.
-- Refuses to start if sleep is already disabled by another tool. Refuses the known Island Pro stable/beta daemons and running Island Pro process. Rechecks conflict during operation. This is a conservative migration gate, not a universal lock against arbitrary tools changing pmset after enable.
-- At 10% battery or below, normal sleep is restored and the Mac is asked to sleep even with its lid open. The ten-second guard interval bounds normal detection latency. Known AC power does not trigger the low-battery stop. Unknown source or missing/invalid battery charge blocks enable and stops a running mode.
-- Continuous monotonic time, including system sleep, drives duration and heartbeat deadlines; changing the wall clock cannot extend them. Calendar dates are used only for display and crash records.
-- A failed restoration preserves the recovery file, reports an error and retries on the daemon timer. A corrupt file blocks enable instead of guessing a previous state.
+These are native view renders using demonstration state; the live panel uses the system’s glass material. No desktop, personal content or system logs are included.
 
-This uses a privileged system setting, not caffeinate. The physical lid behavior has not been verified on this Mac, and no claim is made for all Mac models. Avoid putting an operating laptop in a bag.
+## Install on another Mac
 
-## Build and verify
+Once a release is published, download its signed disk image from [Releases](https://github.com/artematman/shut-your-lid/releases), open it and drag **Shut Your Lid** to **Applications**. Launch it from Applications or keep it in your Dock.
+
+The first time you enable the mode, macOS requests approval for its background helper. Open **System Settings → General → Login Items & Extensions** and approve the item belonging to Shut Your Lid. macOS can show the signing developer’s name. Return to the app and try the switch again.
+
+Each Mac has its own approval and local state. No developer account, password, signing key or shared settings are installed on the recipient’s computer.
+
+If another utility already changes closed-lid sleep behavior, turn off that utility’s mode first. This app refuses to start while ordinary sleep is already disabled or a known conflicting power helper is present.
+
+**Current candidate:** Apple notarization and local Gatekeeper assessment passed. Clean-system helper registration, upgrades and physical lid/battery/thermal acceptance remain open. Do not disable Gatekeeper or strip quarantine.
+
+## Privacy and security
+
+The app operates locally. There is no account, analytics, remote server, runtime network client, document collection or runtime Keychain access. Preferences and a small recovery record remain on that Mac. The app does not grant anyone remote access.
+
+A narrowly scoped, privileged helper changes the system sleep flag. App and helper check the expected code signing identity in both directions; the interface accepts fixed power operations, not paths, shell commands or credentials. Developer signing keys remain on the build machine and are never included in the download. The public certificate identifies the signer.
+
+The helper restores sleep on disable, expiry, loss of the application, restart recovery and handled termination. A failed restore preserves its recovery state and retries; a corrupt existing record triggers a verified return to ordinary sleep. Lost helper communication is shown as an error, not a confirmed “Off.”
+
+This app is **not App Sandbox isolated**: its helper has root authority. Reviews and tests reduce risk; they do not establish absolute safety. Read [Security](SECURITY.md) and [release validation](docs/VALIDATION.md) for precise limits.
+
+## Use responsibly
+
+Closed-lid behavior must be tested on your intended Mac, power source and display setup. Do not put a running MacBook in a bag. Quit ends this app’s mode. To remove it, first switch the mode off and confirm ordinary sleep, then quit and disable its background item in macOS settings before removing the app.
+
+## Build
+
+Requires a compatible Xcode installation with Swift 6.3 or newer and the macOS SDK. There are no external package dependencies.
 
 ```sh
 swift test
-./Scripts/build-app.sh /private/tmp/shut-your-lid-artifact
-python3 Scripts/verify-app.py '/private/tmp/shut-your-lid-artifact/Shut Your Lid.app'
+sh Scripts/build-app.sh /private/tmp/shut-your-lid-release
 ```
 
-The build script signs with the owner's installed Developer ID certificate. Private signing keys remain in the build machine’s Keychain and are not packaged. The runtime application and daemon contain no Keychain-reading, document-reading, analytics or network client code. Each installation operates on its own Mac with its own local state. Signing identifies the publisher but grants no access to the publisher’s computer or Keychain. It does not install signing credentials, register the daemon, change power settings or request permissions. Build in a local temporary folder to avoid File Provider metadata interfering with signing. The release script remaps source paths, removes debug symbol references before signing, and rejects personal paths or secret patterns in artifacts. Run `python3 Scripts/privacy-gate.py --history --app /path/to/app` before publication. These static checks complement code review; they are not a proof against every possible vulnerability. Icon source is the native drawing script `Scripts/make-icon.swift`.
+The distribution script builds **arm64 and x86_64** and signs with the configured Developer ID identity. `LID_SIGN_IDENTITY` selects the certificate; the current app/helper signing requirements are pinned to the publisher’s Team ID. A fork using a different developer team must update those requirements, launch constraints and artifact checks consistently. Do not remove those checks to make an unsigned privileged helper work.
 
-## Physical acceptance
+Release credentials are never checked into this repository. See [Release guide](docs/RELEASE.md) for packaging, Apple notarization and the public release gate.
 
-After disabling the old mode, approving the new app, and seeing its switch on:
+## License
 
-```sh
-python3 Scripts/lid-check.py record --out /private/tmp/shut-your-lid-check.jsonl
-```
-
-Wait ten seconds, note the time, close the lid for at least two minutes, open it and wait ten seconds. Stop the recorder with Ctrl-C. Then inspect:
-
-```sh
-python3 Scripts/lid-check.py inspect --out /private/tmp/shut-your-lid-check.jsonl
-```
-
-The recorder checks the migration gate, running new app/helper and the real flag before recording. Each sample executes background work and writes a wall-clock timestamp; inspect reports gaps over ten seconds. A clean gap report alone is not proof that the lid was closed: the owner must record actual close/open times and confirm the interval was covered. Repeat on battery and with the intended external display/power setup. Then switch off and confirm `pmset -g` no longer reports `SleepDisabled 1`. Quit and repeat app disconnect/recovery tests if desired. Do not disable an unrelated tool's power flag.
-
-## Provenance
-
-Only the lid controller/protocol/model, helper, compact menu and related tests were extracted from the owner's Island Pro project at commit `2d03a54` (`audit/beta2-fixes`, build 40032). No Island Pro updater, cloud integrations, profile or broader app source was copied. Historical test results are not evidence of hardware acceptance for this app.
+[MIT](LICENSE). This standalone app contains the extracted closed-lid controller and its tests; unrelated features and integrations from the original project are not included.

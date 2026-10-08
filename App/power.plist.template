@@ -10,6 +10,16 @@
          relaunched after a crash; exits on its own when idle. -->
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+    <!-- Launch constraint, enforced by macOS 14+: launchd starts the job only
+         if the executable is this Developer ID-signed helper of team
+         8XZ7Z4UR6C. A replaced binary in the user-writable app bundle is
+         refused instead of running as root. -->
+    <key>SpawnConstraint</key>
+    <dict>
+        <key>team-identifier</key><string>8XZ7Z4UR6C</string>
+        <key>signing-identifier</key><string>__LABEL__</string>
+        <key>validation-category</key><integer>6</integer>
+    </dict>
     <key>AssociatedBundleIdentifiers</key><array><string>__APP_ID__</string></array>
 </dict>
 </plist>

@@ -116,6 +116,8 @@ public final class LidModeController: @unchecked Sendable {
     private var lastStop: LidModeStatus.StopReason?
     private var restorationError: String?
     private var sleepAfterRestore = false
+    /// Set once the helper is shutting down: no new lease may start.
+    private var terminating = false
 
     public init(settings: LidPowerSettings, stateURL: URL, now: @escaping () -> Date = Date.init,
                 elapsed: @escaping () -> TimeInterval = LidMonotonicTime.now) {
@@ -130,14 +132,24 @@ public final class LidModeController: @unchecked Sendable {
     @discardableResult
     public func recoverOnLaunch() -> LidModeStatus {
         lock.lock(); defer { lock.unlock() }
+        // A readable record restores its saved value; an unreadable one restores
+        // normal sleep (see `restoreLocked`). No file: the flag is left alone.
         if FileManager.default.fileExists(atPath: stateURL.path) {
-            guard readRecord() != nil else {
-                restorationError = "Файл восстановления повреждён; включение заблокировано."
-                return statusLocked()
-            }
             restoreLocked(reason: .recoveredAfterRestart)
         }
         return statusLocked()
+    }
+
+    /// Helper termination (SIGTERM from launchd): refuse new leases, restore
+    /// normal sleep and report whether that is confirmed. Nothing to restore
+    /// (no lease, no record) counts as confirmed and leaves the flag alone.
+    public func prepareForTermination() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        terminating = true
+        if record != nil || restorationError != nil || FileManager.default.fileExists(atPath: stateURL.path) {
+            restoreLocked(reason: .appGone)
+        }
+        return record == nil && restorationError == nil && !FileManager.default.fileExists(atPath: stateURL.path)
     }
 
     // MARK: Requests from the app
@@ -145,6 +157,7 @@ public final class LidModeController: @unchecked Sendable {
     public func enable(maxMinutes: Int, batteryFloor: Int, power: LidPowerReading) throws -> LidModeStatus {
         lock.lock(); defer { lock.unlock() }
         let floor = max(LidModeLimits.defaultBatteryFloor, min(batteryFloor, 90))
+        if terminating { throw LidModeError.notApplied("Системный помощник завершает работу.") }
         if power.thermalSeriousOrWorse { throw LidModeError.tooHot }
         guard power.hasSafeTelemetry else { throw LidModeError.telemetryUnavailable }
         if let restorationError { throw LidModeError.notApplied(restorationError) }
@@ -178,6 +191,28 @@ public final class LidModeController: @unchecked Sendable {
         return statusLocked()
     }
 
+    /// Replace the remaining lease without changing the system sleep flag.
+    /// Expired or unsafe leases are stopped by the same guards as the timer.
+    public func updateDuration(maxMinutes: Int, power: LidPowerReading) throws -> LidModeStatus {
+        lock.lock(); defer { lock.unlock() }
+        if terminating { return statusLocked() }
+        _ = tickLocked(power: power)
+        guard var current = record, restorationError == nil else { return statusLocked() }
+        guard try settings.sleepDisabled() else {
+            restoreLocked(reason: .failed)
+            return statusLocked()
+        }
+        let seconds = TimeInterval(max(1, min(maxMinutes, LidModeLimits.maxMinutesCap)) * 60)
+        let startElapsed = elapsed()
+        current.expiresAt = now().addingTimeInterval(seconds)
+        // Persist first; a failed write leaves the previous deadline intact.
+        try writeRecord(current)
+        record = current
+        deadline = startElapsed + seconds
+        lastHeartbeat = startElapsed
+        return statusLocked()
+    }
+
     public func disable(reason: LidModeStatus.StopReason) -> LidModeStatus {
         lock.lock(); defer { lock.unlock() }
         restoreLocked(reason: reason)
@@ -201,6 +236,10 @@ public final class LidModeController: @unchecked Sendable {
     @discardableResult
     public func tick(power: LidPowerReading) -> LidModeStatus.StopReason? {
         lock.lock(); defer { lock.unlock() }
+        return tickLocked(power: power)
+    }
+
+    private func tickLocked(power: LidPowerReading) -> LidModeStatus.StopReason? {
         if restorationError != nil { restoreLocked(reason: .failed); return .failed }
         guard let current = record else { return nil }
         let reason: LidModeStatus.StopReason?
@@ -235,9 +274,21 @@ public final class LidModeController: @unchecked Sendable {
                 return
             }
         } else if FileManager.default.fileExists(atPath: stateURL.path) {
-            restorationError = "Файл восстановления повреждён; включение заблокировано."
-            lastStop = .failed
-            return
+            // Unreadable record. This app only ever enables when sleep was not
+            // already disabled, so normal sleep is the value to restore. The
+            // file goes only after the flag is confirmed; otherwise keep the
+            // error (enable stays blocked) and retry on the next tick.
+            do {
+                try settings.setSleepDisabled(false)
+                guard try settings.sleepDisabled() == false else {
+                    throw LidModeError.notApplied("Не удалось восстановить обычный сон.")
+                }
+                try FileManager.default.removeItem(at: stateURL)
+            } catch {
+                restorationError = "Файл восстановления повреждён, обычный сон не восстановлен: \(error)"
+                lastStop = .failed
+                return
+            }
         }
         restorationError = nil
         record = nil
@@ -286,7 +337,7 @@ public struct PmsetPowerSettings: LidPowerSettings {
 
     public func setSleepDisabled(_ value: Bool) throws {
         if value, LegacyModeConflict.isPresent() {
-            throw LidModeError.notApplied("Выключите режим крышки и завершите Island Pro. Отключите его помощник в настройках macOS перед переходом.")
+            throw LidModeError.notApplied("Выключите режим крышки в другом приложении и отключите его фоновый помощник в настройках macOS.")
         }
         _ = try Self.run(["-a", "disablesleep", value ? "1" : "0"])
     }

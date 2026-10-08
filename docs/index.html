@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Static page: no scripts, analytics, trackers, external fonts or third-party requests. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="Shut Your Lid — a small, local macOS menu bar app that keeps your MacBook working with its lid closed, for a duration you choose.">
+<title>Shut Your Lid</title>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<main>
+<header>
+  <img src="images/splash.png" alt="Red lips zipped shut and the graffiti wordmark “Shut Your Lip”">
+  <h1>Shut Your Lid</h1>
+  <p class="tag">Close your MacBook. Keep things running.<br>A small, local macOS menu bar app with a little attitude.</p>
+  <span class="badge">macOS 14+ · Apple Silicon &amp; Intel · Russian &amp; English · Open source</span><br>
+  <a class="cta primary" href="https://github.com/artematman/shut-your-lid">Source on GitHub</a>
+  <a class="cta secondary" href="https://github.com/artematman/shut-your-lid/blob/main/docs/VALIDATION.md">Release status</a>
+</header>
+
+<section>
+  <p class="note"><strong>0.3.8 release candidate.</strong> Developer ID signed, accepted by Apple notarization and stapled. Source is available for review. Clean-system helper and hardware acceptance are still pending; a stable public binary download is not available yet.</p>
+</section>
+
+<section>
+  <h2>One switch. Your time.</h2>
+  <div class="grid">
+    <div class="card"><h3>Your duration</h3><p>30 minutes to 12 hours, or any whole minute with the custom slider. Change it while running.</p></div>
+    <div class="card"><h3>Battery guard</h3><p>At 10% or lower on battery it restores ordinary sleep and asks your Mac to sleep.</p></div>
+    <div class="card"><h3>Temperature guard</h3><p>Serious overheating or unavailable power information stops the mode.</p></div>
+    <div class="card"><h3>A proper welcome</h3><p>The lips blow a kiss and zip shut; the last “d” tips over and lands as a “p” — Shut Your Lip.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>A look inside</h2>
+  <div class="grid">
+    <figure><img src="images/menu.png" alt="Compact menu with the closed-lid switch"><figcaption>The menu bar control</figcaption></figure>
+    <figure><img src="images/settings.png" alt="Duration and protection settings"><figcaption>Settings</figcaption></figure>
+    <figure><img src="images/welcome.png" alt="First launch with the menu bar guide"><figcaption>First launch</figcaption></figure>
+  </div>
+  <figure class="wide"><img src="images/flight-light.png" alt="The splash shrinks into the menu bar icon"><figcaption>Every launch folds into the real menu bar icon.</figcaption></figure>
+</section>
+
+<section>
+  <h2>Privacy and security</h2>
+  <p>The app works locally: no account, analytics, remote server, runtime network client, document collection or runtime Keychain access. A narrowly scoped privileged helper changes the system sleep flag; app and helper verify each other’s code signature, and launchd refuses a helper with the wrong signature. The app is not App Sandbox isolated — read <a href="https://github.com/artematman/shut-your-lid/blob/main/SECURITY.md">SECURITY.md</a> for exact limits.</p>
+  <p>Never put a running MacBook in a bag.</p>
+</section>
+
+<footer>MIT licensed · This page loads nothing from third parties.</footer>
+</main>
+</body>
+</html>

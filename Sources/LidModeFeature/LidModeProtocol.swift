@@ -2,10 +2,11 @@ import Foundation
 
 /// Fixed operations between Shut Your Lid and `LidPowerHelper`. No command,
 /// path or credential crosses: the app can only ask to enable, disable,
-/// heartbeat or read the status; the helper answers with `LidModeStatus` JSON.
+/// update the remaining duration, heartbeat or read the status; the helper answers with `LidModeStatus` JSON.
 @objc public protocol LidPowerControl {
     func status(reply: @escaping @Sendable (Data) -> Void)
     func enable(maxMinutes: Int, batteryFloor: Int, reply: @escaping @Sendable (Data) -> Void)
+    func updateDuration(maxMinutes: Int, reply: @escaping @Sendable (Data) -> Void)
     func disable(reply: @escaping @Sendable (Data) -> Void)
     func heartbeat(reply: @escaping @Sendable (Data) -> Void)
 }
