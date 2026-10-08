@@ -4,7 +4,7 @@
 body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
 main { max-width: 920px; margin: 0 auto; padding: 48px 20px 64px; }
 header { text-align: center; }
-header img { width: min(440px, 90%); height: auto; }
+header img { width: min(240px, 70%); height: auto; border-radius: 30px; }
 h1 { font-size: 40px; margin: 8px 0 4px; letter-spacing: -0.02em; }
 .tag { color: var(--muted); margin: 0 0 20px; }
 .badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 14px; color: var(--muted); }
