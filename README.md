@@ -1,5 +1,5 @@
-<p align="center"><img src="docs/images/logo.png" width="220" alt="Red lips zipped shut — Shut Your Lid" /></p>
-<h1 align="center">Shut Your Lid</h1>
+<p align="center"><img src="docs/images/logo.png" width="220" alt="Red lips zipped shut — Shut Your Lead" /></p>
+<h1 align="center">Shut Your Lead</h1>
 <p align="center"><strong>Close your MacBook. Keep things running.</strong><br>A small, local macOS menu bar app with a little attitude.</p>
 <p align="center">macOS 14+ · Apple Silicon & Intel · Russian & English · Open source</p>
 
