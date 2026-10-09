@@ -1,11 +1,11 @@
-<p align="center"><img src="docs/images/logo.png" width="220" alt="Red lips zipped shut — Shut Your Lid" /></p>
+<p align="center"><img src="docs/images/post-main.png" width="640" alt="Shut Your Lid: MacBook promotional mockup with the approved red zipped lips logo" /></p>
 <h1 align="center">Shut Your Lid</h1>
 <p align="center"><strong>Close your MacBook. Keep things running.</strong><br>A small, local macOS menu bar app with a little attitude.</p>
 <p align="center">macOS 14+ · Apple Silicon & Intel · Russian & English · Open source</p>
 
 <p align="center"><a href="https://github.com/artematman/shut-your-lid/releases/download/v0.3.8-rc.1/Shut-Your-Lid-0.3.8-universal.dmg"><strong>Download for macOS — DMG</strong></a> · <a href="docs/INSTALL.md">Installation guide</a> · <a href="https://github.com/artematman/shut-your-lid/releases/tag/v0.3.8-rc.1">Release notes & checksums</a></p>
 
-> **Private preview · 0.3.8 build 15 release candidate.** Only the repository owner has access. Developer ID signed, accepted by Apple notarization and stapled. Installer links require the owner’s GitHub sign-in. Clean-system helper and physical battery/thermal/lid acceptance remain pending; this is a candidate for review, not a stable public release.
+> **Public prerelease · 0.3.8 build 15.** Free download, no account required. Developer ID signed, accepted by Apple notarization and stapled. Clean-system helper and physical battery/thermal/lid acceptance remain pending; this is a version for testing, not a stable release.
 
 ## One switch. Your time.
 
@@ -24,7 +24,7 @@ Keep your MacBook working with its lid closed for a duration you choose. Launchi
 <p align="center"><img src="docs/images/menu.png" width="340" alt="Compact menu with the closed-lid switch" /> <img src="docs/images/settings.png" width="340" alt="Custom duration and protection settings" /></p>
 <p align="center"><img src="docs/images/splash.png" width="340" alt="Transparent launch animation: zipped lips and the Shut Your Lip marker wordmark" /> <img src="docs/images/welcome.png" width="340" alt="First launch: lips, Lid to Lip wordmark and menu bar guide" /></p>
 
-These are native view renders using demonstration state; the live panel uses the system’s glass material. No desktop, personal content or system logs are included.
+The cover is a promotional MacBook mockup. Interface images below are native view renders using demonstration state; the live panel uses the system’s glass material. No personal desktop content or system logs are included.
 
 ## Install on another Mac
 

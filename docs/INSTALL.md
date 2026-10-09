@@ -2,7 +2,7 @@
 
 **macOS 14 or newer · Apple Silicon and Intel · version 0.3.8 build 15.** The launch wordmark intentionally animates Lid → Lip.
 
-This private preview is available only to the repository owner. Sign in to the owner’s GitHub account before downloading. The app is signed and notarized; each Mac keeps its own preferences and recovery state. No publisher account, password or private signing key is included or required.
+This public prerelease is free to download. No GitHub account is required. The app is signed and notarized; each Mac keeps its own preferences and recovery state. No publisher account, password or private signing key is included or required.
 
 ## Установка на Mac
 

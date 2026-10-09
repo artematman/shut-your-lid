@@ -24,3 +24,5 @@ figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
 footer { margin-top: 56px; color: var(--muted); font-size: 14px; text-align: center; }
 a { color: var(--red); }
 .wide { margin-top: 16px; }
+
+header img.campaign { width: min(520px, 95%); border-radius: 18px; }
