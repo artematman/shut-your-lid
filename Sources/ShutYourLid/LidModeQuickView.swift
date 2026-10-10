@@ -159,6 +159,8 @@ struct LidStatus: Equatable {
             return LidStatus(tone: .active, text: LidModeStatusText.onUntil(until, now: now), until: until)
         case .needsApproval:
             return LidStatus(tone: .warning, text: loc("status.needsApproval"), until: nil)
+        case .batteryLow(let percent):
+            return LidStatus(tone: .warning, text: loc("status.battery %@", String(percent)), until: nil)
         case .failed:
             return LidStatus(tone: .error, text: loc("status.failed"), until: nil)
         case .unavailable:
@@ -180,7 +182,7 @@ struct LidStatusLine: View {
                     indicator
                     Text(text)
                         .font(.callout)
-                        .foregroundStyle(status.tone == .error ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(textColor)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .monospacedDigit()
@@ -215,8 +217,16 @@ struct LidStatusLine: View {
         switch status.tone {
         case .neutral, .working: return Color.secondary.opacity(0.6)
         case .active: return .green
-        case .warning: return .orange
+        case .warning: return .yellow
         case .error: return .red
+        }
+    }
+
+    private var textColor: Color {
+        switch status.tone {
+        case .warning: return .yellow
+        case .error: return .red
+        default: return .secondary
         }
     }
 }
@@ -229,6 +239,7 @@ struct LidDetail: Equatable {
     @MainActor static func current(for model: LidModeModel) -> LidDetail? {
         switch model.phase {
         case .needsApproval: return LidDetail(text: nil, offersApproval: true)
+        case .batteryLow: return LidDetail(text: loc("status.battery.requirement"), offersApproval: false)
         case .failed(let reason), .unavailable(let reason): return LidDetail(text: reason, offersApproval: false)
         case .off, .working, .on: return nil
         }

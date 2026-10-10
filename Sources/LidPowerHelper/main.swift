@@ -52,7 +52,11 @@ final class Endpoint: NSObject, LidPowerControl {
         do { reply(LidModeWire.encode(try controller.enable(maxMinutes: maxMinutes, batteryFloor: batteryFloor, power: powerReading()))) }
         catch {
             var status = controller.status()
-            status.error = String(describing: error)
+            if case LidModeError.batteryTooLow(let percent) = error, status.error == nil {
+                status.blockedBatteryPercent = percent
+            } else {
+                status.error = String(describing: error)
+            }
             reply(LidModeWire.encode(status))
         }
     }

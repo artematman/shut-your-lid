@@ -7,6 +7,38 @@ import SwiftUI
 
 @Suite("Lid mode menu bar and embedded helper")
 struct LidModeMenuBarTests {
+    @Test("low battery is a localized warning, preserves the percent and never turns the mode on", arguments: [6, 10])
+    @MainActor func lowBatteryWarning(percent: Int) async throws {
+        let reply = LidModeStatus(blockedBatteryPercent: percent)
+        let decoded = try #require(LidModeWire.decode(LidModeWire.encode(reply)))
+        let model = LidModeModel(system: .init(
+            serviceState: { .enabled }, register: {}, openLoginItems: {}, call: { _ in decoded }
+        ))
+        await model.setEnabled(true)
+        #expect(!model.isOn)
+        #expect(model.phase == .batteryLow(percent))
+        let status = LidStatus.current(for: model, pending: nil)
+        #expect(status.tone == .warning)
+        #expect(status.text == loc("status.battery %@", String(percent)))
+        #expect(LidDetail.current(for: model)?.text == loc("status.battery.requirement"))
+        #expect(lidString("status.battery %@", language: .ru, [String(percent)]) == "Заряд аккумулятора \(percent)%")
+        #expect(lidString("status.battery %@", language: .en, [String(percent)]) == "Battery charge \(percent)%")
+    }
+
+    @Test("a real helper failure takes priority over a battery warning; old replies remain compatible")
+    @MainActor func batteryWarningCompatibility() async throws {
+        let model = LidModeModel(system: .init(
+            serviceState: { .enabled }, register: {}, openLoginItems: {},
+            call: { _ in LidModeStatus(error: "restoration failed", blockedBatteryPercent: 6) }
+        ))
+        await model.setEnabled(true)
+        #expect(model.phase == .failed("restoration failed"))
+        #expect(LidStatus.current(for: model, pending: nil).tone == .error)
+        let oldReply = Data(#"{"active":false,"sleepDisabledNow":false,"batteryFloor":10}"#.utf8)
+        let oldStatus = try #require(LidModeWire.decode(oldReply))
+        #expect(oldStatus.blockedBatteryPercent == nil)
+    }
+
     @Test("the actual SwiftUI approval card determines the native window height without a fixed empty footer")
     @MainActor func fittedApprovalCard() async {
         _ = NSApplication.shared

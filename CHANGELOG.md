@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — release candidate (build 16)
+
+- Low battery is a yellow warning showing the actual charge percentage instead of a red Error state.
+- Explains that on battery the mode requires more than 10% charge; connecting power remains supported.
+- The helper sends a typed battery refusal; real helper/restoration failures remain errors. The 10% safety cutoff is unchanged.
+
 ## 0.3.8 — release candidate (build 15)
 
 - Build 15: fixed a first-launch crash (`EXC_BREAKPOINT` in the XPC client). XPC error and invalidation callbacks no longer inherit main-actor isolation; NSXPC calls them on its own queue. Regression test uses a real connection to a missing Mach service.
