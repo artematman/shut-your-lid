@@ -32,13 +32,15 @@ public struct LidModeStatus: Codable, Equatable, Sendable {
     public var error: String?
     /// A normal enable refusal, distinct from a helper/system failure.
     public var blockedBatteryPercent: Int?
+    public var blockedByHeat: Bool?
 
     public init(active: Bool = false, sleepDisabledNow: Bool = false, enabledAt: Date? = nil, expiresAt: Date? = nil,
                 batteryFloor: Int = LidModeLimits.defaultBatteryFloor, lastStopReason: StopReason? = nil, error: String? = nil,
-                blockedBatteryPercent: Int? = nil) {
+                blockedBatteryPercent: Int? = nil, blockedByHeat: Bool? = nil) {
         self.active = active; self.sleepDisabledNow = sleepDisabledNow; self.enabledAt = enabledAt
         self.expiresAt = expiresAt; self.batteryFloor = batteryFloor; self.lastStopReason = lastStopReason; self.error = error
         self.blockedBatteryPercent = blockedBatteryPercent
+        self.blockedByHeat = blockedByHeat
     }
 
     public enum StopReason: String, Codable, Sendable {

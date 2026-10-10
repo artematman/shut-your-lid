@@ -15,6 +15,7 @@ import ServiceManagement
         case working
         case on(until: Date?)
         case batteryLow(Int)
+        case overheated
         case failed(String)
         case unavailable(String)
     }
@@ -199,6 +200,9 @@ import ServiceManagement
 
     private func apply(_ status: LidModeStatus) {
         if let error = status.error { phase = .failed(error); stopHeartbeat(); return }
+        if !status.active, status.blockedByHeat == true {
+            phase = .overheated; stopHeartbeat(); return
+        }
         if !status.active, let percent = status.blockedBatteryPercent, (0...100).contains(percent) {
             phase = .batteryLow(percent); stopHeartbeat(); return
         }

@@ -19,7 +19,7 @@ iconutil -c icns "$OUT/AppIcon.iconset" -o "$C/Resources/ShutYourLidLips.icns"
 python3 - "$C/Info.plist" <<'PY'
 import plistlib,sys
 with open(sys.argv[1],'wb') as f:
- plistlib.dump(dict(CFBundleIdentifier='com.artemkharitonov.shutyourlid',CFBundleName='Shut Your Lid',CFBundleDisplayName='Shut Your Lid',CFBundleExecutable='ShutYourLid',CFBundleVersion='16',CFBundleShortVersionString='0.3.9',CFBundleDevelopmentRegion='en',CFBundleLocalizations=['en','ru'],CFBundlePackageType='APPL',CFBundleIconFile='ShutYourLidLips.icns',LSMinimumSystemVersion='14.0',LSUIElement=True,NSHighResolutionCapable=True),f)
+ plistlib.dump(dict(CFBundleIdentifier='com.artemkharitonov.shutyourlid',CFBundleName='Shut Your Lid',CFBundleDisplayName='Shut Your Lid',CFBundleExecutable='ShutYourLid',CFBundleVersion='17',CFBundleShortVersionString='0.3.9',CFBundleDevelopmentRegion='en',CFBundleLocalizations=['en','ru'],CFBundlePackageType='APPL',CFBundleIconFile='ShutYourLidLips.icns',LSMinimumSystemVersion='14.0',LSUIElement=True,NSHighResolutionCapable=True),f)
 PY
 /usr/bin/strip -S "$C/MacOS/ShutYourLid" "$C/MacOS/LidPowerHelper"
 python3 "$ROOT/Scripts/privacy-gate.py" --app "$APP"

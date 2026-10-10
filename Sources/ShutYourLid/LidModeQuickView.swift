@@ -38,6 +38,15 @@ struct LidModeQuickView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await model.refresh() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)) { _ in
+            Task { await model.refresh() }
+        }
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            switch model.phase {
+            case .batteryLow, .overheated: Task { await model.refresh() }
+            default: break
+            }
+        }
     }
 
     private func page(_ content: some View, active: Bool, edge: CGFloat) -> some View {
@@ -161,6 +170,8 @@ struct LidStatus: Equatable {
             return LidStatus(tone: .warning, text: loc("status.needsApproval"), until: nil)
         case .batteryLow(let percent):
             return LidStatus(tone: .warning, text: loc("status.battery %@", String(percent)), until: nil)
+        case .overheated:
+            return LidStatus(tone: .error, text: loc("status.thermal"), until: nil)
         case .failed:
             return LidStatus(tone: .error, text: loc("status.failed"), until: nil)
         case .unavailable:
@@ -240,6 +251,7 @@ struct LidDetail: Equatable {
         switch model.phase {
         case .needsApproval: return LidDetail(text: nil, offersApproval: true)
         case .batteryLow: return LidDetail(text: loc("status.battery.requirement"), offersApproval: false)
+        case .overheated: return LidDetail(text: loc("status.thermal.requirement"), offersApproval: false)
         case .failed(let reason), .unavailable(let reason): return LidDetail(text: reason, offersApproval: false)
         case .off, .working, .on: return nil
         }
@@ -255,7 +267,7 @@ struct LidDetailView: View {
             if let text = detail.text {
                 Text(text)
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .lineLimit(5)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)

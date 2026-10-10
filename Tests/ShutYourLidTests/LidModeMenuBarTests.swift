@@ -7,6 +7,52 @@ import SwiftUI
 
 @Suite("Lid mode menu bar and embedded helper")
 struct LidModeMenuBarTests {
+    @Test("heat refusal is red guidance, clears after cooling and never masks restoration failures")
+    @MainActor func heatWarningRecovery() async throws {
+        var hot = true
+        let model = LidModeModel(system: .init(
+            serviceState: { .enabled }, register: {}, openLoginItems: {},
+            call: { _ in LidModeWire.decode(LidModeWire.encode(LidModeStatus(blockedByHeat: hot))) }
+        ))
+        await model.setEnabled(true)
+        #expect(model.phase == .overheated && !model.isOn)
+        #expect(LidStatus.current(for: model, pending: nil).tone == .error)
+        #expect(LidStatus.current(for: model, pending: nil).text == loc("status.thermal"))
+        #expect(LidDetail.current(for: model)?.text == loc("status.thermal.requirement"))
+        hot = false
+        await model.refresh()
+        #expect(model.phase == .off && !model.isOn)
+        let failed = LidModeModel(system: .init(
+            serviceState: { .enabled }, register: {}, openLoginItems: {},
+            call: { _ in LidModeStatus(error: "restoration failed", blockedByHeat: true) }
+        ))
+        await failed.setEnabled(true)
+        #expect(failed.phase == .failed("restoration failed"))
+    }
+
+    @Test("native battery and heat warning previews render when requested")
+    @MainActor func warningPreviews() async throws {
+        guard let folder = ProcessInfo.processInfo.environment["LID_WARNING_PREVIEW_DIR"] else { return }
+        _ = NSApplication.shared
+        let out = URL(fileURLWithPath: folder)
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for (name, status) in [("battery", LidModeStatus(blockedBatteryPercent: 6)), ("heat", LidModeStatus(blockedByHeat: true))] {
+            let model = LidModeModel(system: .init(serviceState: { .enabled }, register: {}, openLoginItems: {}, call: { _ in status }))
+            await model.setEnabled(true)
+            let host = NSHostingView(rootView: LidModeQuickView(model: model))
+            host.appearance = NSAppearance(named: .darkAqua)
+            host.sizingOptions = [.intrinsicContentSize]
+            host.layoutSubtreeIfNeeded()
+            host.frame = NSRect(origin: .zero, size: host.fittingSize)
+            host.wantsLayer = true
+            host.layer?.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: out.appendingPathComponent("\(name).png"))
+        }
+    }
+
     @Test("low battery is a localized warning, preserves the percent and never turns the mode on", arguments: [6, 10])
     @MainActor func lowBatteryWarning(percent: Int) async throws {
         let reply = LidModeStatus(blockedBatteryPercent: percent)

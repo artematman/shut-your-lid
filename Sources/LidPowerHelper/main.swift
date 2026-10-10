@@ -47,13 +47,27 @@ func lidClosed() -> Bool {
 }
 
 final class Endpoint: NSObject, LidPowerControl {
-    func status(reply: @escaping @Sendable (Data) -> Void) { reply(LidModeWire.encode(controller.status())) }
+    func status(reply: @escaping @Sendable (Data) -> Void) {
+        var status = controller.status()
+        if !status.active, status.error == nil {
+            let power = powerReading()
+            if power.thermalSeriousOrWorse {
+                status.blockedByHeat = true
+            } else if power.hasSafeTelemetry, power.onBattery == true,
+                      let percent = power.batteryPercent, percent <= LidModeLimits.defaultBatteryFloor {
+                status.blockedBatteryPercent = percent
+            }
+        }
+        reply(LidModeWire.encode(status))
+    }
     func enable(maxMinutes: Int, batteryFloor: Int, reply: @escaping @Sendable (Data) -> Void) {
         do { reply(LidModeWire.encode(try controller.enable(maxMinutes: maxMinutes, batteryFloor: batteryFloor, power: powerReading()))) }
         catch {
             var status = controller.status()
             if case LidModeError.batteryTooLow(let percent) = error, status.error == nil {
                 status.blockedBatteryPercent = percent
+            } else if case LidModeError.tooHot = error, status.error == nil {
+                status.blockedByHeat = true
             } else {
                 status.error = String(describing: error)
             }
