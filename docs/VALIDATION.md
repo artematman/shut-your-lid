@@ -1,3 +1,14 @@
+# Validation — 0.3.9 build 17 candidate, 2026-10-10
+
+- 93 tests in 14 suites passed, including typed battery/heat warnings, clearing after cooling, wire compatibility and failure precedence.
+- Native dark-mode battery and heat warning previews were rendered and inspected.
+- Source and signed app/archive privacy regression checks passed. This is a scoped regression check, not a new independent full audit.
+- App notarization Accepted (`33e6d052-79d5-46d5-a7f8-7858eb50eb2f`); DMG Accepted (`91126cd6-0a57-47c4-94f8-84f7bc53f4d0`); tickets stapled, local Gatekeeper assessment passed.
+- On the developer Mac, two live readings reported thermalState fair; the serious/critical refusal threshold is unchanged. No temperature in degrees was obtained.
+- Clean-system helper upgrade, physical lid/battery/thermal and recovery acceptance remain pending. This remains a prerelease.
+
+## Previous baseline
+
 # Validation — 0.3.8 build 15 candidate, 2026-10-08
 
 ## Completed

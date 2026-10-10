@@ -1,12 +1,12 @@
 # Install Shut Your Lid
 
-**macOS 14 or newer · Apple Silicon and Intel · version 0.3.8 build 15.** The launch wordmark intentionally animates Lid → Lip.
+**macOS 14 or newer · Apple Silicon and Intel · version 0.3.9 build 17.** The launch wordmark intentionally animates Lid → Lip.
 
 This public prerelease is free to download. No GitHub account is required. The app is signed and notarized; each Mac keeps its own preferences and recovery state. No publisher account, password or private signing key is included or required.
 
 ## Установка на Mac
 
-1. Скачайте [DMG](https://github.com/artematman/shut-your-lid/releases/download/v0.3.8-rc.1/Shut-Your-Lid-0.3.8-universal.dmg).
+1. Скачайте [DMG](https://github.com/artematman/shut-your-lid/releases/download/v0.3.9-rc.1/Shut-Your-Lid-0.3.9-universal.dmg).
 2. Откройте образ и перенесите **Shut Your Lid** в **Программы**. Запускайте копию из «Программ», затем извлеките образ.
 3. При запуске появится анимация. Управление находится у значка MacBook в верхней строке меню.
 4. Нажмите значок, откройте «Настройки» и выберите длительность. По умолчанию — 4 часа; доступны готовые значения и ползунок от 1 минуты до 12 часов. Во время работы длительность можно менять.

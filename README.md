@@ -3,9 +3,9 @@
 <p align="center"><strong>Close your MacBook. Keep things running.</strong><br>A small, local macOS menu bar app with a little attitude.</p>
 <p align="center">macOS 14+ · Apple Silicon & Intel · Russian & English · Open source</p>
 
-<p align="center"><a href="https://github.com/artematman/shut-your-lid/releases/download/v0.3.8-rc.1/Shut-Your-Lid-0.3.8-universal.dmg"><strong>Download for macOS — DMG</strong></a> · <a href="docs/INSTALL.md">Installation guide</a> · <a href="https://github.com/artematman/shut-your-lid/releases/tag/v0.3.8-rc.1">Release notes & checksums</a></p>
+<p align="center"><a href="https://github.com/artematman/shut-your-lid/releases/download/v0.3.9-rc.1/Shut-Your-Lid-0.3.9-universal.dmg"><strong>Download for macOS — DMG</strong></a> · <a href="docs/INSTALL.md">Installation guide</a> · <a href="https://github.com/artematman/shut-your-lid/releases/tag/v0.3.9-rc.1">Release notes & checksums</a></p>
 
-> **Public prerelease · 0.3.8 build 15.** Free download, no account required. Developer ID signed, accepted by Apple notarization and stapled. Clean-system helper and physical battery/thermal/lid acceptance remain pending; this is a version for testing, not a stable release.
+> **Public prerelease · 0.3.9 build 17.** Free download, no account required. Developer ID signed, accepted by Apple notarization and stapled. Clean-system helper and physical battery/thermal/lid acceptance remain pending; this is a version for testing, not a stable release.
 
 ## One switch. Your time.
 
@@ -28,7 +28,7 @@ The cover is a promotional MacBook mockup. Interface images below are native vie
 
 ## Install on another Mac
 
-Download the signed [0.3.8 candidate disk image](https://github.com/artematman/shut-your-lid/releases/download/v0.3.8-rc.1/Shut-Your-Lid-0.3.8-universal.dmg), open it and drag **Shut Your Lid** to **Applications**. Launch it from Applications or keep it in your Dock. See the [installation guide](docs/INSTALL.md) for first launch, updates and removal.
+Download the signed [0.3.9 candidate disk image](https://github.com/artematman/shut-your-lid/releases/download/v0.3.9-rc.1/Shut-Your-Lid-0.3.9-universal.dmg), open it and drag **Shut Your Lid** to **Applications**. Launch it from Applications or keep it in your Dock. See the [installation guide](docs/INSTALL.md) for first launch, updates and removal.
 
 The first time you enable the mode, macOS requests approval for its background helper. Open **System Settings → General → Login Items & Extensions** and approve the item belonging to Shut Your Lid. macOS can show the signing developer’s name. Return to the app and try the switch again.
 
