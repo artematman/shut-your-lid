@@ -1,6 +1,6 @@
 # Install Shut Your Lid
 
-**macOS 14 or newer · Apple Silicon and Intel · version 0.3.9 build 17.** The launch wordmark intentionally animates Lid → Lip.
+**macOS 14 or newer · Apple Silicon and Intel · version 0.3.9 build 18.** The launch wordmark intentionally animates Lid → Lip.
 
 This public prerelease is free to download. No GitHub account is required. The app is signed and notarized; each Mac keeps its own preferences and recovery state. No publisher account, password or private signing key is included or required.
 
