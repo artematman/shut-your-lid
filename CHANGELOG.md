@@ -1,7 +1,8 @@
 # Changelog
 
-## 0.3.9 — release candidate (build 17)
+## 0.3.9 — release candidate (build 18)
 
+- Quitting shows “Quitting…” (“Выходим…” in Russian) while the helper restores ordinary sleep; duration changes and re-enabling are blocked during exit.
 - Heat warnings show a red title and ordinary white guidance. Visible warnings refresh against current helper telemetry every 10 seconds and on macOS thermal notifications, so an old refusal clears after cooling.
 - Low battery is a yellow warning showing the actual charge percentage instead of a red Error state.
 - Explains that on battery the mode requires more than 10% charge; connecting power remains supported.

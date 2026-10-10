@@ -7,6 +7,38 @@ import SwiftUI
 
 @Suite("Lid mode menu bar and embedded helper")
 struct LidModeMenuBarTests {
+    @Test("exit stays Quitting while sleep restoration is pending and blocks new work")
+    @MainActor func quittingStatus() async {
+        var reply: CheckedContinuation<LidModeStatus?, Never>?
+        var enables = 0
+        let model = LidModeModel(system: .init(
+            serviceState: { .enabled }, register: {}, openLoginItems: {},
+            call: { request in
+                switch request {
+                case .disable: return await withCheckedContinuation { reply = $0 }
+                case .enable: enables += 1; return LidModeStatus()
+                default: return LidModeStatus()
+                }
+            }
+        ))
+        let quit = Task { await model.prepareToQuit() }
+        while reply == nil { await Task.yield() }
+        #expect(model.isQuitting && model.phase == .working)
+        #expect(LidStatus.current(for: model, pending: false).text == loc("status.quitting"))
+        #expect(LidDetail.current(for: model) == nil)
+        #expect(!model.canChangeDuration)
+        let duration = model.maxMinutes
+        model.setDuration(minutes: 30)
+        await model.setEnabled(true)
+        #expect(enables == 0 && model.maxMinutes == duration)
+        reply?.resume(returning: LidModeStatus())
+        await quit.value
+        #expect(model.phase == .off && model.isQuitting)
+        #expect(LidStatus.current(for: model, pending: nil).text == loc("status.quitting"))
+        #expect(lidString("status.quitting", language: .ru) == "Выходим…")
+        #expect(lidString("status.quitting", language: .en) == "Quitting…")
+    }
+
     @Test("heat refusal is red guidance, clears after cooling and never masks restoration failures")
     @MainActor func heatWarningRecovery() async throws {
         var hot = true
@@ -420,7 +452,7 @@ struct DurationPanelLayoutTests {
     func longStringsFit() {
         let medium = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         let callout = NSFont.preferredFont(forTextStyle: .callout)
-        let statusKeys = ["status.off", "status.enabling", "status.disabling", "status.working", "status.on",
+        let statusKeys = ["status.off", "status.enabling", "status.disabling", "status.working", "status.quitting", "status.on",
                           "status.needsApproval", "status.failed", "status.unavailable",
                           "lid.stop.battery", "lid.stop.thermal", "lid.stop.time", "lid.stop.telemetry", "lid.stop.failed"]
         for language in [LidLanguage.ru, .en] {

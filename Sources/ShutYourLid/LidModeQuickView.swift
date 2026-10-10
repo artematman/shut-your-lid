@@ -133,6 +133,7 @@ struct LidModeMainPage: View {
     }
 
     private var canToggle: Bool {
+        guard !model.isQuitting else { return false }
         switch model.phase {
         case .working, .unavailable: return false
         default: return true
@@ -155,6 +156,7 @@ struct LidStatus: Equatable {
     let until: Date?
 
     @MainActor static func current(for model: LidModeModel, pending: Bool?, now: Date = .now) -> LidStatus {
+        if model.isQuitting { return LidStatus(tone: .working, text: loc("status.quitting"), until: nil) }
         switch model.phase {
         case .off:
             if let stop = model.lastStop, let note = LidModeStatusText.stopNote(stop) {
@@ -248,6 +250,7 @@ struct LidDetail: Equatable {
     let offersApproval: Bool
 
     @MainActor static func current(for model: LidModeModel) -> LidDetail? {
+        guard !model.isQuitting else { return nil }
         switch model.phase {
         case .needsApproval: return LidDetail(text: nil, offersApproval: true)
         case .batteryLow: return LidDetail(text: loc("status.battery.requirement"), offersApproval: false)

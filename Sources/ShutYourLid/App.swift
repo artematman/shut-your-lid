@@ -37,7 +37,7 @@ import LidModeFeature
  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
   if quitting { return .terminateNow }
   quitting = true
-  Task { await model.setEnabled(false); NSApp.reply(toApplicationShouldTerminate: true) }
+  Task { await model.prepareToQuit(); NSApp.reply(toApplicationShouldTerminate: true) }
   return .terminateLater
  }
 }

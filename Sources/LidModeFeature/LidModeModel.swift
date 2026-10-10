@@ -38,6 +38,7 @@ import ServiceManagement
     }
 
     public private(set) var phase: Phase = .off
+    public private(set) var isQuitting = false
     /// Why the mode turned itself off last time (battery, heat, limit, app gone).
     public private(set) var lastStop: LidModeStatus.StopReason?
     public static let durationPresets = [30, 60, 120, 240, 360, 480, 720]
@@ -65,6 +66,7 @@ import ServiceManagement
     }
 
     public var canChangeDuration: Bool {
+        guard !isQuitting else { return false }
         switch phase {
         case .working, .needsApproval: return false
         default: return true
@@ -130,7 +132,7 @@ import ServiceManagement
 
     /// Re-reads the real state (on appear and on return from System Settings).
     public func refresh() async {
-        guard phase != .working, !updatingDuration else { return }
+        guard !isQuitting, phase != .working, !updatingDuration else { return }
         let version = operationVersion
         let statusVersion = statusRevision
         switch system.serviceState() {
@@ -154,7 +156,15 @@ import ServiceManagement
     }
 
     public func setEnabled(_ enabled: Bool) async {
+        guard !isQuitting else { return }
         if enabled { await turnOn() } else { await turnOff() }
+    }
+
+    /// Preserve the exit status while restoring ordinary sleep before termination.
+    public func prepareToQuit() async {
+        guard !isQuitting else { return }
+        isQuitting = true
+        await turnOff()
     }
 
     public func openApproval() { system.openLoginItems() }

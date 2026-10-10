@@ -46,6 +46,7 @@ func lidString(_ key: String, language: LidLanguage, _ arguments: [CVarArg] = []
 let lidStringsRU: [String: String] = [
  "lid.title": "Работать с закрытой крышкой",
  "status.working": "Применяем…",
+ "status.quitting": "Выходим…",
  "lid.unavailable": "Недоступно в этой сборке: нет системного помощника.",
  "lid.helperGone": "системный помощник не отвечает",
  "lid.conflict": "Сначала выключите режим закрытой крышки в другом приложении и отключите его фоновый помощник в настройках macOS.",
@@ -100,6 +101,7 @@ let lidStringsRU: [String: String] = [
 let lidStringsEN: [String: String] = [
  "lid.title": "Work with the lid closed",
  "status.working": "Applying…",
+ "status.quitting": "Quitting…",
  "lid.unavailable": "Unavailable in this build: the system helper is missing.",
  "lid.helperGone": "the system helper is not responding",
  "lid.conflict": "First turn off closed-lid mode in the other app and disable its background helper in macOS settings.",
